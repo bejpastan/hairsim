@@ -11,6 +11,8 @@ public class HairMesh : MonoBehaviour
 
     public Material material;
 
+    Entity[] entity = new Entity[0];
+
     private void Start()
     {
 
@@ -21,26 +23,31 @@ public class HairMesh : MonoBehaviour
         World world = World.DefaultGameObjectInjectionWorld;
         EntityManager em = world.EntityManager;
 
-        Entity[] entity = new Entity[2000];
-
-        Mesh strandMesh = StrandSpawner.CreateMesh(4, 0.25f, 3.0f);
+        Mesh strandMesh = StrandSpawner.CreateMesh(30, 0.25f, 3.0f);
 
         var renderArray = new RenderMeshArray(
             new[] { material },
             new[] { strandMesh }
         );
 
-
         float3 pos;
 
-        for (int i = 0; i < 2000; i++)
+        if(entity.Length == 0)
         {
-            entity[i] = em.CreateEntity();
+            entity = new Entity[300];
+            for (int i = 0; i < 300; i++)
+            {
+                entity[i] = em.CreateEntity();
+            }
+        }
+        var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
+        for (int i = 0; i < 300; i++)
+        {
             pos = new float3(0.1f * i, 0, 0);
-            var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
             RenderMeshUtility.AddComponents(entity[i], em, desc, renderArray, MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0));
             em.SetComponentData(entity[i], new LocalToWorld { Value = float4x4.TRS(pos, quaternion.identity, new float3(1, 1, 1)) });
         }
+
         rebuild = true;
     }
 
