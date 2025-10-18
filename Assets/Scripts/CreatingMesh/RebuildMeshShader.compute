@@ -4,8 +4,8 @@
 
 RWStructuredBuffer<float3> _Vertices;
 StructuredBuffer<uint> _Indices;
-int _Segments;
-int _BaseSize;
+uint _Segments;
+float _BaseSize;
 
 
 [numthreads(64,1,1)]
@@ -14,7 +14,7 @@ void BuildIndices (uint3 id : SV_DispatchThreadID)
     GetIndice(id.x);
 }
 
-void GetIndice(uint index)//index is the quad index
+void GetIndice(uint1 index)//index is the quad index
 {
     int vStart = index * 4;//multiply by 4 vertices per ring
     uint side = index % 4;
@@ -33,14 +33,14 @@ void GetIndice(uint index)//index is the quad index
 }
 
 [numthreads(64,1,1)]
-void BuildIndices (uint3 id : SV_DispatchThreadID)
+void BuildVertices (uint3 id : SV_DispatchThreadID)
 {
     GetPosition(id.x);
 }
 
-void GetPosition(uint index)
+void GetPosition(uint1 index)
 {
-    int i = index % 4;
-    int a = i % 2;
+    uint1 i = index % 4;
+    uint1 a = i % 2;
     _Vertices[index] = float3(((i - (a)) - 1) * (a) * _BaseSize, ((i - (a)) - 1) * ((1 + i) % 2) * _BaseSize, index - i);
 }

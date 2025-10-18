@@ -30,6 +30,7 @@ public class HairMesh : MonoBehaviour
             new[] { strandMesh }
         );
 
+        var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
 
         float3 pos;
 
@@ -37,7 +38,6 @@ public class HairMesh : MonoBehaviour
         {
             entity[i] = em.CreateEntity();
             pos = new float3(0.1f * i, 0, 0);
-            var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
             RenderMeshUtility.AddComponents(entity[i], em, desc, renderArray, MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0));
             em.SetComponentData(entity[i], new LocalToWorld { Value = float4x4.TRS(pos, quaternion.identity, new float3(1, 1, 1)) });
         }
