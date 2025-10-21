@@ -4,35 +4,60 @@ using UnityEngine.Rendering;
 using Unity.Rendering;
 using Unity.Transforms;
 using Unity.Mathematics;
+using Unity.Collections;
 
 public class HairMesh : MonoBehaviour
 {
     bool rebuild = false;
-
-    public Material material;
+    [SerializeField]
+    Material material;
+    [SerializeField]
+    int segments;
+    [SerializeField]
+    int entiyCount = 300;
 
     Entity[] entity = new Entity[0];
 
+    //mesh data
+    Mesh strandMesh;
+    RenderMeshArray renderArray;
+
+    EntityManager em;
     private void Start()
     {
+        PrepareData();
+    }
 
+    private void PrepareData()
+    {
+        World world = World.DefaultGameObjectInjectionWorld;
+        em = world.EntityManager;
+        strandMesh = new Mesh();
+        Rebuild();
+        renderArray = new RenderMeshArray(
+            new[] { material },
+            new[] { strandMesh }
+        );
+        SpawnEntities();
     }
 
     private void Rebuild()
     {
-        World world = World.DefaultGameObjectInjectionWorld;
-        EntityManager em = world.EntityManager;
+        NativeArray<float3> positions;
+        NativeArray<ushort> indices;
 
-        Mesh strandMesh = StrandSpawner.CreateMesh(30, 0.25f, 3.0f);
+        StrandSpawner.CreateMesh(segments, 0.25f, 3.0f, out positions, out indices);
 
-        var renderArray = new RenderMeshArray(
-            new[] { material },
-            new[] { strandMesh }
-        );
+        strandMesh.SetVertices(positions);
+        strandMesh.SetIndices(indices, MeshTopology.Triangles, 0);
+        rebuild = true;
+    }
 
+    private void SpawnEntities()
+    {
         float3 pos;
 
-        if(entity.Length == 0)
+        if (entity.Length == 0)
         {
             entity = new Entity[300];
             for (int i = 0; i < 300; i++)
@@ -47,8 +72,6 @@ public class HairMesh : MonoBehaviour
             RenderMeshUtility.AddComponents(entity[i], em, desc, renderArray, MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0));
             em.SetComponentData(entity[i], new LocalToWorld { Value = float4x4.TRS(pos, quaternion.identity, new float3(1, 1, 1)) });
         }
-
-        rebuild = true;
     }
 
     private void Update()

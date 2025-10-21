@@ -20,15 +20,15 @@ public partial struct StrandSpawner : ISystem
         state.EntityManager.AddComponentData(entity, new LocalToWorld { Value = float4x4.identity });
     }
 
-    public static Mesh CreateMesh(int segments, float baseSize, float height)
+    public static void CreateMesh(int segments, float baseSize, float height, out NativeArray<float3> positions, out NativeArray<ushort> indices)
     {
         int vertexPerSegment = 4;
         int rings = segments + 1;
         int vertexCount = rings * vertexPerSegment;
 
-        Mesh newMesh = new Mesh();
+        //Mesh newMesh = new Mesh();
 
-        NativeArray<float3> positions = new NativeArray<float3>(rings * 4, Allocator.TempJob);
+        positions = new NativeArray<float3>(rings * 4, Allocator.TempJob);
         CreateVertices createVerticesJob = new CreateVertices
         {
             rings = rings,
@@ -39,7 +39,7 @@ public partial struct StrandSpawner : ISystem
         jobHandle.Complete();
         positions = createVerticesJob.positions;
 
-        NativeArray<ushort> indices = new NativeArray<ushort>(segments * 4 * 6, Allocator.TempJob);
+        indices = new NativeArray<ushort>(segments * 4 * 6, Allocator.TempJob);
         CreateIndices createIndicesJob = new CreateIndices
         {
             segments = segments,
@@ -49,9 +49,9 @@ public partial struct StrandSpawner : ISystem
         indexJobHandle.Complete();
         indices = createIndicesJob.indices;
 
-        newMesh.SetVertices(positions);
-        newMesh.SetIndices(indices, MeshTopology.Triangles, 0);
-        newMesh.RecalculateNormals();
+        //newMesh.SetVertices(positions);
+        //newMesh.SetIndices(indices, MeshTopology.Triangles, 0);
+        //newMesh.RecalculateNormals();
 
         /*
             Mesh.MeshDataArray meshData = Mesh.AllocateWritableMeshData(1);
@@ -103,7 +103,7 @@ public partial struct StrandSpawner : ISystem
             Mesh.ApplyAndDisposeWritableMeshData(meshData, newMesh);
             newMesh.RecalculateNormals();
         */
-        return newMesh;
+        //return newMesh;
     }
 }
 
