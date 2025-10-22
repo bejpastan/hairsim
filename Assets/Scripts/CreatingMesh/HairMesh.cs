@@ -67,10 +67,14 @@ public class HairMesh : MonoBehaviour
             }
         }
         var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
+        StrandData shaderData;
         for (int i = 0; i < entiyCount; i++)
         {
+            shaderData = new StrandData();
+            shaderData._MyEntityScale = i * 2.0f;
             pos = new float3(0.1f * i, 0, 0);
             RenderMeshUtility.AddComponents(entity[i], em, desc, renderArray, MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0));
+            em.AddComponentData(entity[i], shaderData);
             em.SetComponentData(entity[i], new LocalToWorld { Value = float4x4.TRS(pos, quaternion.identity, new float3(1, 1, 1)) });
         }
     }
