@@ -48,6 +48,7 @@ public class HairMesh : MonoBehaviour
 
         StrandSpawner.CreateMesh(segments, 0.25f, 3.0f, out positions, out indices);
 
+        strandMesh.Clear();
         strandMesh.SetVertices(positions);
         strandMesh.SetIndices(indices, MeshTopology.Triangles, 0);
         rebuild = true;
