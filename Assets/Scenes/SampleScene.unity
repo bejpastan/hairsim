@@ -455,9 +455,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14c9cd3581c38884484863ed423f08e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  material: {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  segments: 2
-  entiyCount: 2000
+  material: {fileID: 2100000, guid: af173b3c590f62a4294d1d4ef1961544, type: 2}
+  segments: 5
+  entiyCount: 2
 --- !u!4 &1464909937
 Transform:
   m_ObjectHideFlags: 0
