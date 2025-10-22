@@ -1,14 +1,14 @@
-using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Entities.UniversalDelegates;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
-using static UnityEngine.Rendering.HableCurve;
+using static UnityEditor.PlayerSettings;
 
 [BurstCompile]
 [UpdateInGroup(typeof(InitializationSystemGroup))]
@@ -20,33 +20,114 @@ public partial struct StrandSpawner : ISystem
         state.EntityManager.AddComponentData(entity, new LocalToWorld { Value = float4x4.identity });
     }
 
-    public static Mesh CreateMesh(int segments, float baseSize, float height)
+    public static void CreateMesh(int segments, float baseSize, float height, out NativeArray<float3> positions, out NativeArray<ushort> indices)
     {
         int vertexPerSegment = 4;
         int rings = segments + 1;
         int vertexCount = rings * vertexPerSegment;
 
-        Mesh newMesh = new Mesh();
+        //Mesh newMesh = new Mesh();
 
-        GenerateVertices generateVertices = new GenerateVertices { baseSize = baseSize, segments = segments, vertices = new NativeArray<float3>(vertexPerSegment * (segments+1), Allocator.TempJob) };
-        var verticesHandle = generateVertices.Schedule();
-        verticesHandle.Complete();
+        positions = new NativeArray<float3>(rings * 4, Allocator.TempJob);
+        CreateVertices createVerticesJob = new CreateVertices
+        {
+            rings = rings,
+            baseSize = baseSize,
+            positions = positions
+        };
+        JobHandle jobHandle = createVerticesJob.Schedule();
+        jobHandle.Complete();
+        positions = createVerticesJob.positions;
 
-        
-        GenerateIndices generateIndices = new GenerateIndices{ segments = segments, indices = new NativeArray<ushort>(segments * 4 * 6, Allocator.TempJob)};
-        var indexHandle = generateIndices.Schedule();
-        indexHandle.Complete();
+        indices = new NativeArray<ushort>(segments * 4 * 6, Allocator.TempJob);
+        CreateIndices createIndicesJob = new CreateIndices
+        {
+            segments = segments,
+            indices = indices
+        };
+        JobHandle indexJobHandle = createIndicesJob.Schedule();
+        indexJobHandle.Complete();
+        indices = createIndicesJob.indices;
 
-        newMesh.SetVertices(generateVertices.vertices);
-        newMesh.SetIndices(generateIndices.indices, MeshTopology.Triangles, 0);
-        newMesh.RecalculateNormals();
+        //newMesh.SetVertices(positions);
+        //newMesh.SetIndices(indices, MeshTopology.Triangles, 0);
+        //newMesh.RecalculateNormals();
 
-        return newMesh;
+        /*
+            Mesh.MeshDataArray meshData = Mesh.AllocateWritableMeshData(1);
+            Mesh.MeshData data = meshData[0];
+            data.SetVertexBufferParams(vertexCount, new VertexAttributeDescriptor(VertexAttribute.Position));
+            var positions = data.GetVertexData<float3>();
+
+            for (int i = 0; i < rings; i++)
+            {
+                float yPos = (height / segments) * i;
+                positions[i * 4 + 1] = new float3(-baseSize / 2, yPos, -baseSize / 2);
+                positions[i * 4 + 0] = new float3(baseSize / 2, yPos, -baseSize / 2);
+                positions[i * 4 + 2] = new float3(baseSize / 2, yPos, baseSize / 2);
+                positions[i * 4 + 3] = new float3(-baseSize / 2, yPos, baseSize / 2);
+            }
+
+            int quads = segments * 4;
+            int indexCount = quads * 6;
+
+            data.SetIndexBufferParams(indexCount, IndexFormat.UInt16);
+            var indices = data.GetIndexData<ushort>();
+
+            int index = 0;
+
+            for (int i = 0; i < segments; i++)
+            {
+                int vStart = i * vertexPerSegment;
+                //iterate over all sides of segment
+                for(int side = 0; side <4; side++)
+                {
+                    int next = (side +1) % 4;
+                    ushort v0 = (ushort)(vStart + side);
+                    ushort v1 = (ushort)(vStart + next);
+                    ushort v2 = (ushort)(vStart + side + vertexPerSegment);
+                    ushort v3 = (ushort)(vStart + next + vertexPerSegment);
+
+                    indices[index++] = v0;
+                    indices[index++] = v2;
+                    indices[index++] = v1;
+                    indices[index++] = v1;
+                    indices[index++] = v2;
+                    indices[index++] = v3;
+                }
+            }
+
+            data.subMeshCount = 1;
+            data.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
+
+            Mesh.ApplyAndDisposeWritableMeshData(meshData, newMesh);
+            newMesh.RecalculateNormals();
+        */
+        //return newMesh;
     }
 }
 
-[BurstCompile]
-public struct GenerateIndices : IJob
+public struct CreateVertices : IJob
+{
+    public int rings;
+    public float baseSize;
+    [WriteOnly]
+    public NativeArray<float3> positions;
+
+    public void Execute()
+    {
+        for (int i = 0; i < rings; i++)
+        {
+            float yPos = i;
+            positions[i * 4 + 1] = new float3(-baseSize / 2, yPos, -baseSize / 2);
+            positions[i * 4 + 0] = new float3(baseSize / 2, yPos, -baseSize / 2);
+            positions[i * 4 + 2] = new float3(baseSize / 2, yPos, baseSize / 2);
+            positions[i * 4 + 3] = new float3(-baseSize / 2, yPos, baseSize / 2);
+        }
+    }
+}
+
+public struct CreateIndices : IJob
 {
     const int vertexPerSegment = 4;
     public int segments;
@@ -55,6 +136,7 @@ public struct GenerateIndices : IJob
 
     public void Execute()
     {
+        int index = 0;
         for (int i = 0; i < segments; i++)
         {
             int vStart = i * vertexPerSegment;
@@ -66,37 +148,14 @@ public struct GenerateIndices : IJob
                 ushort v1 = (ushort)(vStart + next);
                 ushort v2 = (ushort)(vStart + side + vertexPerSegment);
                 ushort v3 = (ushort)(vStart + next + vertexPerSegment);
-
-                indices[i*6] = v0;
-                indices[i*6+1] = v2;
-                indices[i*6+2] = v1;
-                indices[i*6+3] = v1;
-                indices[i*6+4] = v2;
-                indices[i*6+5] = v3;
+                indices[index++] = v0;
+                indices[index++] = v2;
+                indices[index++] = v1;
+                indices[index++] = v1;
+                indices[index++] = v2;
+                indices[index++] = v3;
+                //Debug.Log($"v0:{v0} v1:{v1} v2:{v2} v3:{v3}" );
             }
-        }
-    }
-}
-
-[BurstCompile]
-public struct GenerateVertices : IJob
-{
-    const int vertexPerSegment = 4;
-    [ReadOnly]
-    public int segments;
-    [ReadOnly]
-    public float baseSize;
-    [WriteOnly]
-    public NativeArray<float3> vertices;
-
-    public void Execute()
-    {
-        for (int i = 0; i < segments + 1; i++)
-        {
-            vertices[i * 4 + 1] = new float3(-baseSize / 2, i, -baseSize / 2);
-            vertices[i * 4 + 0] = new float3(baseSize / 2, i, -baseSize / 2);
-            vertices[i * 4 + 2] = new float3(baseSize / 2, i, baseSize / 2);
-            vertices[i * 4 + 3] = new float3(-baseSize / 2, i, baseSize / 2);
         }
     }
 }
