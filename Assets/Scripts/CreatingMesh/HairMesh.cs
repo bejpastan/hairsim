@@ -60,14 +60,14 @@ public class HairMesh : MonoBehaviour
 
         if (entity.Length == 0)
         {
-            entity = new Entity[300];
-            for (int i = 0; i < 300; i++)
+            entity = new Entity[entiyCount];
+            for (int i = 0; i < entiyCount; i++)
             {
                 entity[i] = em.CreateEntity();
             }
         }
         var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
-        for (int i = 0; i < 300; i++)
+        for (int i = 0; i < entiyCount; i++)
         {
             pos = new float3(0.1f * i, 0, 0);
             RenderMeshUtility.AddComponents(entity[i], em, desc, renderArray, MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0));
