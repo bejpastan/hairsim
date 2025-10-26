@@ -3,44 +3,61 @@
 #pragma kernel BuildIndices
 
 RWStructuredBuffer<float3> _Vertices;
-StructuredBuffer<uint> _Indices;
+RWStructuredBuffer<int> _Indices;
+
+//RWByteAddressBuffer _Vertices;
+//RWByteAddressBuffer _Indices;
 uint _Segments;
 float _BaseSize;
+uint _verticesCount;
+uint _indicesCount;
 
 
-[numthreads(64,1,1)]
-void BuildIndices (uint3 id : SV_DispatchThreadID)
+void GetIndice(uint index)//index is the quad index
 {
-    GetIndice(id.x);
-}
+    uint segment = index / 4;
+    uint vStart = index; //this is first vertix of the quad
+    uint vNext = (vStart + 1)%4 + segment * 4; //this neighbor vertix in the quad
 
-void GetIndice(uint1 index)//index is the quad index
-{
-    int vStart = index * 4;//multiply by 4 vertices per ring
-    uint side = index % 4;
-    int next = (side + 1) % 4;
-    uint v0 = (uint) (vStart + side);
-    uint v1 = (uint) (vStart + next);
-    uint v2 = (uint) (vStart + side + 4);
-    uint v3 = (uint) (vStart + next + 4);
+    uint v0 = vStart;
+    uint v1 = vNext;
+    uint v2 = vStart + 4;
+    uint v3 = vNext + 4;
     
-    _Indices[index * 6] = v0;
-    _Indices[index * 6 + 1] = v2;
-    _Indices[index * 6 + 2] = v1;
-    _Indices[index * 6 + 3] = v1;
-    _Indices[index * 6 + 4] = v2;
-    _Indices[index * 6 + 5] = v3;
+    uint offset = index * 6;
+    _Indices[offset] = v1;
+    _Indices[offset + 1] = v2;
+    _Indices[offset + 2] = v0;
+    _Indices[offset + 3] = v3;
+    _Indices[offset + 4] = v2;
+    _Indices[offset + 5] = v1;
 }
 
-[numthreads(64,1,1)]
-void BuildVertices (uint3 id : SV_DispatchThreadID)
+void GetPosition(uint index)
 {
-    GetPosition(id.x);
+    float i = index % 4;
+    float a = i % 2;
+    float z = (index - i) / 4;
+    uint offset = index * 12;
+    //to test with getting data from buffer
+    //_Vertices.Store3(offset, asuint(float3(((i - a) - 1) * a, ((i - a) - 1) * ((1 + i) % 2), z)));
+    _Vertices[index] = float3(((i - a) - 1) * a * _BaseSize, z, ((i - a) - 1) * ((1 + i) % 2) * _BaseSize);
 }
 
-void GetPosition(uint1 index)
+[numthreads(64, 1, 1)]
+void BuildIndices(uint3 id : SV_DispatchThreadID)
 {
-    uint1 i = index % 4;
-    uint1 a = i % 2;
-    _Vertices[index] = float3(((i - (a)) - 1) * (a) * _BaseSize, ((i - (a)) - 1) * ((1 + i) % 2) * _BaseSize, index - i);
+    if(id.x<_indicesCount)
+    {
+        GetIndice(id.x);
+    }
+}
+
+[numthreads(64, 1, 1)]
+void BuildVertices(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < _verticesCount)
+    {
+        GetPosition(id.x);
+    }
 }

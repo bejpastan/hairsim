@@ -148,7 +148,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55e32ba648a2d9b4cb379d2b3f528f0f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
   segments: 5
+  baseSize: 0.1
+  entityCount: 1
+  hairMat: {fileID: 2100000, guid: 44a1e817e430c8e4c9f2f545f16ef6ee, type: 2}
 --- !u!4 &38255618
 Transform:
   m_ObjectHideFlags: 0

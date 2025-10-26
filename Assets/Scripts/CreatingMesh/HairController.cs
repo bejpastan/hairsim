@@ -1,14 +1,16 @@
-using Unity.Entities;
-using Unity.Rendering;
 using UnityEngine;
-using UnityEngine.Rendering;
+using Unity.Mathematics;
+using System.Threading.Tasks;
+using System.Collections;
+using Unity.VisualScripting;
+using System.Collections.Generic;
 
 public class HairController : MonoBehaviour
 {
     [SerializeField]
     ComputeShader strandMeshBuilder;
     [SerializeField]
-    int segments = 5;
+    int segments;
     [SerializeField]
     float baseSize = 0.1f;
     [SerializeField]
@@ -19,21 +21,38 @@ public class HairController : MonoBehaviour
     GraphicsBuffer vertexBuffer;
     GraphicsBuffer indexBuffer;
 
-    Entity[] entities;
-    EntityManager em;
-    Mesh strandMesh;
     [SerializeField]
     Material hairMat;
+
+    bool rebuild = false;
+
+    GraphicsBuffer cmdBuffer;
+    GraphicsBuffer.IndirectDrawArgs[] cmdArgsBuffer;
+    const int COMMAND_COUNT = 1;
+    RenderParams renderParams;
 
     private void Start()
     {
         PrepareStructures();
-        RebuildMesh();
     }
 
     void Update()
     {
-        
+        Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
+
+
+        if (rebuild)
+        {
+            Debug.Log($"FPS: {1 / Time.deltaTime}");
+            rebuild = false;
+            Debug.Log("Rebuilt mesh");
+            //ShowResults();
+        }
+
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            RebuildMesh();
+        }
     }
 
     /// <summary>
@@ -41,50 +60,64 @@ public class HairController : MonoBehaviour
     /// </summary>
     private void PrepareStructures()
     {
-        //setting buffers to compute shader
-        strandMesh = new Mesh();
-        strandMesh.SetVertexBufferParams((segments + 1) * 4, new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3));
-        strandMesh.SetIndexBufferParams(segments * 6, IndexFormat.UInt32);
-        strandMesh.SetSubMesh(0, new SubMeshDescriptor(0, segments * 6), MeshUpdateFlags.DontRecalculateBounds);
-
-        strandMesh.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
-        strandMesh.indexBufferTarget |= GraphicsBuffer.Target.Raw;
-
-        vertexBuffer = strandMesh.GetVertexBuffer(0);
-        indexBuffer = strandMesh.GetIndexBuffer();
-
         verticesKernelId = strandMeshBuilder.FindKernel("BuildVertices");
         indicesKernelId = strandMeshBuilder.FindKernel("BuildIndices");
 
-        //creating entities
-        em = World.DefaultGameObjectInjectionWorld.EntityManager;
+        int vertexCount = (segments + 1) * 4;
+        int indexCount = segments * 6 * 4;
+        vertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, vertexCount, sizeof(float) * 3);
+        indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, indexCount, sizeof(int));
 
-        var renderArray = new RenderMeshArray(
-            new[] { hairMat },
-            new[] { strandMesh }
-        );
-        var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
+        cmdBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, COMMAND_COUNT, GraphicsBuffer.IndirectDrawArgs.size);
+        cmdArgsBuffer = new GraphicsBuffer.IndirectDrawArgs[COMMAND_COUNT];
+        
+        renderParams = new RenderParams(hairMat);
+        renderParams.worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f);
+        renderParams.matProps = new MaterialPropertyBlock();
 
-        entities = new Entity[entityCount];
-        for (int i = 0; i < entityCount; i++)
-        {
-            entities[i] = em.CreateEntity();
-
-            RenderMeshUtility.AddComponents(entities[i], em, desc, renderArray, MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0));
-        }
+        RebuildMesh();
     }
 
-    /// <summary>
-    /// This is called every time when I need to rebuild the mesh.
-    /// </summary>
-    private void RebuildMesh()
+    private async void RebuildMesh()
     {
+        rebuild = true;
         strandMeshBuilder.SetInt("_Segments", segments);
         strandMeshBuilder.SetFloat("_BaseSize", baseSize);
-        strandMeshBuilder.SetBuffer(verticesKernelId, "_Vertices", vertexBuffer);
+        strandMeshBuilder.SetInt("_verticesCount", (segments + 1) * 4);
+        strandMeshBuilder.SetInt("_indicesCount", segments * 6 * 4);
 
-        strandMeshBuilder.Dispatch(verticesKernelId, 1, 1, 1);
+        strandMeshBuilder.SetBuffer(verticesKernelId, "_Vertices", vertexBuffer);
         strandMeshBuilder.SetBuffer(indicesKernelId, "_Indices", indexBuffer);
-        strandMeshBuilder.Dispatch(indicesKernelId, 1, 1, 1);
+
+        float vertGroup= ((segments + 1)*4)/64.0f;
+        float indGroup = (segments * 6.0f*4.0f)/64.0f;
+
+        strandMeshBuilder.Dispatch(verticesKernelId, (int)Mathf.Ceil(vertGroup), 1, 1);
+        strandMeshBuilder.Dispatch(indicesKernelId, (int)Mathf.Ceil(indGroup), 1, 1);
+
+        renderParams.matProps.SetBuffer("_Vertices", vertexBuffer);
+        renderParams.matProps.SetBuffer("_Indices", indexBuffer);
+
+        cmdArgsBuffer[0].vertexCountPerInstance = (uint)segments * 6 * 4;
+        cmdArgsBuffer[0].instanceCount = entityCount;
+
+        cmdBuffer.SetData(cmdArgsBuffer);
+    }
+
+    private void ShowResults()
+    {
+        float3[] vertices = new float3[(segments + 1) * 4];
+        int[] indices = new int[segments * 6 * 4];
+        vertexBuffer.GetData(vertices);
+        indexBuffer.GetData(indices);
+
+        for(int i = 0; i < vertices.Length; i++)
+        {
+            Debug.Log($"Vertex {i}: {vertices[i]}");
+        }
+        for(int i = 0; i < indices.Length; i++)
+        {
+            Debug.Log($"Index {i}: {indices[i]}");
+        }
     }
 }
