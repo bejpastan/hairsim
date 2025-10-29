@@ -4,75 +4,44 @@ using UnityEngine.Rendering;
 using Unity.Rendering;
 using Unity.Transforms;
 using Unity.Mathematics;
-using Unity.Collections;
 
 public class HairMesh : MonoBehaviour
 {
     bool rebuild = false;
-    [SerializeField]
-    Material material;
-    [SerializeField]
-    int segments;
-    [SerializeField]
-    int entiyCount = 300;
 
-    Entity[] entity = new Entity[0];
+    public Material material;
 
-    //mesh data
-    Mesh strandMesh;
-    RenderMeshArray renderArray;
-
-    EntityManager em;
     private void Start()
     {
-        PrepareData();
-    }
 
-    private void PrepareData()
-    {
-        World world = World.DefaultGameObjectInjectionWorld;
-        em = world.EntityManager;
-        strandMesh = new Mesh();
-        Rebuild();
-        renderArray = new RenderMeshArray(
-            new[] { material },
-            new[] { strandMesh }
-        );
-        SpawnEntities();
     }
 
     private void Rebuild()
     {
-        NativeArray<float3> positions;
-        NativeArray<ushort> indices;
+        World world = World.DefaultGameObjectInjectionWorld;
+        EntityManager em = world.EntityManager;
 
-        StrandSpawner.CreateMesh(segments, 0.25f, 3.0f, out positions, out indices);
+        Entity[] entity = new Entity[2000];
 
-        strandMesh.Clear();
-        strandMesh.SetVertices(positions);
-        strandMesh.SetIndices(indices, MeshTopology.Triangles, 0);
-        rebuild = true;
-    }
+        Mesh strandMesh = StrandSpawner.CreateMesh(4, 0.25f, 3.0f);
 
-    private void SpawnEntities()
-    {
+        var renderArray = new RenderMeshArray(
+            new[] { material },
+            new[] { strandMesh }
+        );
+
+        var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
+
         float3 pos;
 
-        if (entity.Length == 0)
+        for (int i = 0; i < 2000; i++)
         {
-            entity = new Entity[entiyCount];
-            for (int i = 0; i < entiyCount; i++)
-            {
-                entity[i] = em.CreateEntity();
-            }
-        }
-        var desc = new RenderMeshDescription(shadowCastingMode: ShadowCastingMode.Off, receiveShadows: true);
-        for (int i = 0; i < entiyCount; i++)
-        {
+            entity[i] = em.CreateEntity();
             pos = new float3(0.1f * i, 0, 0);
             RenderMeshUtility.AddComponents(entity[i], em, desc, renderArray, MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0));
             em.SetComponentData(entity[i], new LocalToWorld { Value = float4x4.TRS(pos, quaternion.identity, new float3(1, 1, 1)) });
         }
+        rebuild = true;
     }
 
     private void Update()

@@ -1,0 +1,26 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CalcPosition
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<float3> _PointsPositions;
+int _Segments;
+int _Strands;
+
+void CalcRingPositions(uint strandIndex, uint segment)
+{
+    _PointsPositions[strandIndex * _Segments + segment] = float3((float)strandIndex, (float)segment, 0);
+}
+
+//thread groups x - number of instances, y - number of segments in instance
+[numthreads(32,32,1)]
+void CalcPosition (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x < _Strands)
+    {
+        if (id.y < _Segments)
+        {
+            CalcRingPositions(id.x, id.y);
+        }
+    }
+}
