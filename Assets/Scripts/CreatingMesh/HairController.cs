@@ -10,11 +10,13 @@ public class HairController : MonoBehaviour
     [SerializeField]
     ComputeShader strandMeshBuilder;
     [SerializeField]
+    ComputeShader strandPositionShader;
+    [SerializeField]
     int segments;
     [SerializeField]
     float baseSize = 0.1f;
     [SerializeField]
-    uint entityCount = 300;
+    int entityCount = 2;
     int verticesKernelId;
     int indicesKernelId;
 
@@ -30,6 +32,9 @@ public class HairController : MonoBehaviour
     GraphicsBuffer.IndirectDrawArgs[] cmdArgsBuffer;
     const int COMMAND_COUNT = 1;
     RenderParams renderParams;
+    ComputeBuffer positions;
+
+    int positionKernelId;
 
     private void Start()
     {
@@ -39,20 +44,15 @@ public class HairController : MonoBehaviour
     void Update()
     {
         Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
-
-
-        if (rebuild)
-        {
-            Debug.Log($"FPS: {1 / Time.deltaTime}");
-            rebuild = false;
-            Debug.Log("Rebuilt mesh");
-            //ShowResults();
-        }
+        renderParams.matProps.SetBuffer("_Positions", positions);
 
         if (Input.GetKeyDown(KeyCode.Space))
         {
             RebuildMesh();
         }
+
+        CalcPositions();
+        Debug.Log($"FPS: {1 / Time.deltaTime}");
     }
 
     /// <summary>
@@ -60,6 +60,11 @@ public class HairController : MonoBehaviour
     /// </summary>
     private void PrepareStructures()
     {
+        //positions shader setup
+        positionKernelId = strandPositionShader.FindKernel("CalcPosition");
+        positions = new ComputeBuffer((int)entityCount * segments, sizeof(float) * 3);
+
+        //mesh shader setup
         verticesKernelId = strandMeshBuilder.FindKernel("BuildVertices");
         indicesKernelId = strandMeshBuilder.FindKernel("BuildIndices");
 
@@ -75,11 +80,22 @@ public class HairController : MonoBehaviour
         renderParams.worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f);
         renderParams.matProps = new MaterialPropertyBlock();
 
+        renderParams.matProps.SetBuffer("_Vertices", vertexBuffer);
+        renderParams.matProps.SetBuffer("_Indices", indexBuffer);
+        renderParams.matProps.SetBuffer("_Positions", positions);
+        renderParams.matProps.SetInt("_Segments", segments);
+
         RebuildMesh();
     }
 
     private async void RebuildMesh()
     {
+
+        //positions shader setup
+        strandPositionShader.SetInts("_Segments", segments);
+        strandPositionShader.SetInts("_Strands", entityCount);
+        strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
+
         rebuild = true;
         strandMeshBuilder.SetInt("_Segments", segments);
         strandMeshBuilder.SetFloat("_BaseSize", baseSize);
@@ -89,17 +105,14 @@ public class HairController : MonoBehaviour
         strandMeshBuilder.SetBuffer(verticesKernelId, "_Vertices", vertexBuffer);
         strandMeshBuilder.SetBuffer(indicesKernelId, "_Indices", indexBuffer);
 
-        float vertGroup= ((segments + 1)*4)/64.0f;
-        float indGroup = (segments * 6.0f*4.0f)/64.0f;
+        float vertGroup= ((segments + 1)*4)/32.0f;
+        float indGroup = (segments * 6.0f*4.0f)/32.0f;
 
         strandMeshBuilder.Dispatch(verticesKernelId, (int)Mathf.Ceil(vertGroup), 1, 1);
         strandMeshBuilder.Dispatch(indicesKernelId, (int)Mathf.Ceil(indGroup), 1, 1);
 
-        renderParams.matProps.SetBuffer("_Vertices", vertexBuffer);
-        renderParams.matProps.SetBuffer("_Indices", indexBuffer);
-
         cmdArgsBuffer[0].vertexCountPerInstance = (uint)segments * 6 * 4;
-        cmdArgsBuffer[0].instanceCount = entityCount;
+        cmdArgsBuffer[0].instanceCount = (uint)entityCount;
 
         cmdBuffer.SetData(cmdArgsBuffer);
     }
@@ -119,5 +132,10 @@ public class HairController : MonoBehaviour
         {
             Debug.Log($"Index {i}: {indices[i]}");
         }
+    }
+
+    private void CalcPositions()
+    {
+        strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(entityCount / 64.0f), (int)Mathf.Ceil(segments / 64.0f), 1);
     }
 }

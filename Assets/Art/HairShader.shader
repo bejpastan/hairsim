@@ -20,6 +20,8 @@ Shader "Custom/HairShader"
 
             StructuredBuffer<float3> _Vertices;
             StructuredBuffer<int> _Indices;
+            StructuredBuffer<float3> _Positions;
+            int _Segments;
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
@@ -27,7 +29,8 @@ Shader "Custom/HairShader"
 
             struct appdata
             {
-                uint vertexID : SV_VertexID; 
+                uint vertexID : SV_VertexID;
+                uint instanceID : SV_InstanceID;
             };
 
             struct v2f
@@ -41,11 +44,12 @@ Shader "Custom/HairShader"
                 v2f o;
                 uint vertexIndex = _Indices[v.vertexID];
                 float3 positionOS = _Vertices[vertexIndex]; 
-                
+
+                float3 offset = _Positions[v.instanceID * _Segments + vertexIndex/4];
+
                 float4 worldPosition = mul(unity_ObjectToWorld, float4(positionOS, 1.0));
-                
+                worldPosition.xyz += offset;
                 o.positionCS = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, worldPosition));
-                
                 o.color = _BaseColor;
                 
                 return o;
