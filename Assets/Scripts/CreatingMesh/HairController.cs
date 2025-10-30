@@ -14,9 +14,19 @@ public class HairController : MonoBehaviour
     [SerializeField]
     int segments;
     [SerializeField]
-    float baseSize = 0.1f;
+    float strandRadius = 0.1f;
     [SerializeField]
-    int entityCount = 2;
+    int strandCount = 20;// add validating to be multiple of lines
+
+    [SerializeField]
+    int lines = 4;
+    int strandsInLine;
+
+    [SerializeField]
+    float capHeight = 2.0f;
+    [SerializeField]
+    float capRadius = 1.0f;
+
     int verticesKernelId;
     int indicesKernelId;
 
@@ -33,8 +43,11 @@ public class HairController : MonoBehaviour
     const int COMMAND_COUNT = 1;
     RenderParams renderParams;
     ComputeBuffer positions;
+    ComputeBuffer normals;
 
+    int startPositionKernelLinesId;
     int positionKernelId;
+
 
     private void Start()
     {
@@ -62,7 +75,21 @@ public class HairController : MonoBehaviour
     {
         //positions shader setup
         positionKernelId = strandPositionShader.FindKernel("CalcPosition");
-        positions = new ComputeBuffer((int)entityCount * segments, sizeof(float) * 3);
+        startPositionKernelLinesId = strandPositionShader.FindKernel("CalcStartPositionLines");
+        positions = new ComputeBuffer((int)strandCount * (segments+1), sizeof(float) * 3);
+        normals = new ComputeBuffer(strandCount, sizeof(float) * 3);
+        strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsPositions", positions);
+        strandPositionShader.SetBuffer(positionKernelId, "_StrandStartNormal", normals);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_StrandStartNormal", normals);
+
+        strandPositionShader.SetInt("_Lines", lines);
+        strandPositionShader.SetInt("_StrandsPerLine", strandCount/lines);
+        strandPositionShader.SetFloat("_CapHeight", capHeight);
+        strandPositionShader.SetFloat("_CapRadius", capRadius);
+        strandPositionShader.SetInts("_Segments", segments);
+        strandPositionShader.SetInts("_Strands", strandCount);
+        strandPositionShader.SetVector("_CapCenter", new float4(capRadius/2, 0, capRadius/2, 0));
 
         //mesh shader setup
         verticesKernelId = strandMeshBuilder.FindKernel("BuildVertices");
@@ -80,10 +107,17 @@ public class HairController : MonoBehaviour
         renderParams.worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f);
         renderParams.matProps = new MaterialPropertyBlock();
 
+
+        //setting buffers to material
         renderParams.matProps.SetBuffer("_Vertices", vertexBuffer);
         renderParams.matProps.SetBuffer("_Indices", indexBuffer);
         renderParams.matProps.SetBuffer("_Positions", positions);
         renderParams.matProps.SetInt("_Segments", segments);
+
+        //create start positions
+        strandPositionShader.Dispatch(startPositionKernelLinesId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+
+        ShowResults(positions);
 
         RebuildMesh();
     }
@@ -93,12 +127,11 @@ public class HairController : MonoBehaviour
 
         //positions shader setup
         strandPositionShader.SetInts("_Segments", segments);
-        strandPositionShader.SetInts("_Strands", entityCount);
-        strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
-
+        strandPositionShader.SetInts("_Strands", strandCount);
+        
         rebuild = true;
         strandMeshBuilder.SetInt("_Segments", segments);
-        strandMeshBuilder.SetFloat("_BaseSize", baseSize);
+        strandMeshBuilder.SetFloat("_BaseSize", strandRadius);
         strandMeshBuilder.SetInt("_verticesCount", (segments + 1) * 4);
         strandMeshBuilder.SetInt("_indicesCount", segments * 6 * 4);
 
@@ -112,30 +145,26 @@ public class HairController : MonoBehaviour
         strandMeshBuilder.Dispatch(indicesKernelId, (int)Mathf.Ceil(indGroup), 1, 1);
 
         cmdArgsBuffer[0].vertexCountPerInstance = (uint)segments * 6 * 4;
-        cmdArgsBuffer[0].instanceCount = (uint)entityCount;
+        cmdArgsBuffer[0].instanceCount = (uint)strandCount;
 
         cmdBuffer.SetData(cmdArgsBuffer);
     }
 
-    private void ShowResults()
+    private void ShowResults(ComputeBuffer buffer)
     {
-        float3[] vertices = new float3[(segments + 1) * 4];
-        int[] indices = new int[segments * 6 * 4];
-        vertexBuffer.GetData(vertices);
-        indexBuffer.GetData(indices);
-
-        for(int i = 0; i < vertices.Length; i++)
+        //get all data from the buffer
+        Vector3[] data = new Vector3[buffer.count];
+        buffer.GetData(data);
+        Debug.Log(data.Length);
+        for (int i = 0; i < data.Length; i+=3)
         {
-            Debug.Log($"Vertex {i}: {vertices[i]}");
+            Debug.Log($"Point {i}: {data[i]}");
         }
-        for(int i = 0; i < indices.Length; i++)
-        {
-            Debug.Log($"Index {i}: {indices[i]}");
-        }
+        Debug.Log("all showed");
     }
 
     private void CalcPositions()
     {
-        strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(entityCount / 64.0f), (int)Mathf.Ceil(segments / 64.0f), 1);
+        strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
     }
 }

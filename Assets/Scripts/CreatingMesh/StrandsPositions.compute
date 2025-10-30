@@ -1,26 +1,69 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CalcPosition
+#pragma kernel CalcStartPositionLines
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWStructuredBuffer<float3> _PointsPositions;
+RWStructuredBuffer<float3> _StrandStartNormal;
 int _Segments;
 int _Strands;
 
-void CalcRingPositions(uint strandIndex, uint segment)
+//startPositionCalculation
+float _CapRadius;
+float _CapHeight;
+float3 _CapCenter;
+
+
+//linesSettings
+int _Lines;
+int _StrandsPerLine;
+
+void CalcRingPositions(uint strandIndex)
 {
-    _PointsPositions[strandIndex * _Segments + segment] = float3((float)strandIndex, (float)segment, 0);
+    //float3 previousNormal = _StrandStartNormal[strandIndex];
+    //I need to be able to update positions later using Gauss Siedel method
+    for (uint segment = 1; segment < _Segments+1; segment++)
+    {   
+        _PointsPositions[strandIndex * (_Segments + 1) + segment] = _PointsPositions[strandIndex * (_Segments + 1) + segment - 1] + (_StrandStartNormal[strandIndex]);
+    }
 }
 
-//thread groups x - number of instances, y - number of segments in instance
-[numthreads(32,32,1)]
+//calc position of startNode of each strand on base cap
+void CalcStartPositionLines(uint strandIndex)
+{
+    //in future add here left/right/top/back range
+    
+    float lineIndex = floor(strandIndex / _StrandsPerLine);
+    uint atLineIndex = strandIndex - lineIndex * _StrandsPerLine;
+    float lerpedAtLineIndex = (float)atLineIndex - ((_StrandsPerLine - 1) / 2.0f);
+    
+    float xPos = ((((2 * _CapRadius) - (2 * _CapRadius / _Lines)) / (_Lines - 0.5f)) * lineIndex) + (_CapRadius / _Lines);//this works
+    float zChord = sqrt(-pow(xPos - _CapRadius, 2.0) + pow(_CapRadius, 2.0f));//in given xPosition
+    float zPos = 2*zChord * lerpedAtLineIndex/_StrandsPerLine;
+    
+    float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos - _CapRadius, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
+    
+    _PointsPositions[strandIndex * (_Segments + 1)] = float3(xPos, yPos, zPos);
+    _StrandStartNormal[strandIndex * (_Segments + 1)] = float3(0, 0.1f, 0);
+
+}
+
+//thread groups x - number of instances
+[numthreads(64,1,1)]
 void CalcPosition (uint3 id : SV_DispatchThreadID)
 {
     if(id.x < _Strands)
     {
-        if (id.y < _Segments)
-        {
-            CalcRingPositions(id.x, id.y);
-        }
+        CalcRingPositions(id.x);
+    }
+}
+
+[numthreads(64,1,1)]
+void CalcStartPositionLines(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < _Strands)
+    {
+        CalcStartPositionLines(id.x);
     }
 }

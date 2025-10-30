@@ -45,7 +45,7 @@ Shader "Custom/HairShader"
                 uint vertexIndex = _Indices[v.vertexID];
                 float3 positionOS = _Vertices[vertexIndex]; 
 
-                float3 offset = _Positions[v.instanceID * _Segments + vertexIndex/4];
+                float3 offset = _Positions[v.instanceID * (_Segments+1) + vertexIndex/4];
 
                 float4 worldPosition = mul(unity_ObjectToWorld, float4(positionOS, 1.0));
                 worldPosition.xyz += offset;
