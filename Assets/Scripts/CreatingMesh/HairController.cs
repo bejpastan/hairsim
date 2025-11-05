@@ -43,7 +43,7 @@ public class HairController : MonoBehaviour
     const int COMMAND_COUNT = 1;
     RenderParams renderParams;
     ComputeBuffer positions;
-    ComputeBuffer normals;
+    ComputeBuffer quaternion;
 
     int startPositionKernelLinesId;
     int positionKernelId;
@@ -77,11 +77,11 @@ public class HairController : MonoBehaviour
         positionKernelId = strandPositionShader.FindKernel("CalcPosition");
         startPositionKernelLinesId = strandPositionShader.FindKernel("CalcStartPositionLines");
         positions = new ComputeBuffer((int)strandCount * (segments+1), sizeof(float) * 3);
-        normals = new ComputeBuffer(strandCount, sizeof(float) * 3);
+        quaternion = new ComputeBuffer((int)strandCount * (segments + 1), sizeof(float) * 4);
         strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsPositions", positions);
-        strandPositionShader.SetBuffer(positionKernelId, "_StrandStartNormal", normals);
-        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_StrandStartNormal", normals);
+        strandPositionShader.SetBuffer(positionKernelId, "_StrandQuaternion", quaternion);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_StrandQuaternion", quaternion);
 
         strandPositionShader.SetInt("_Lines", lines);
         strandPositionShader.SetInt("_StrandsPerLine", strandCount/lines);
@@ -112,12 +112,11 @@ public class HairController : MonoBehaviour
         renderParams.matProps.SetBuffer("_Vertices", vertexBuffer);
         renderParams.matProps.SetBuffer("_Indices", indexBuffer);
         renderParams.matProps.SetBuffer("_Positions", positions);
+        renderParams.matProps.SetBuffer("_Quternion", quaternion);
         renderParams.matProps.SetInt("_Segments", segments);
 
         //create start positions
         strandPositionShader.Dispatch(startPositionKernelLinesId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
-
-        ShowResults(positions);
 
         RebuildMesh();
     }
@@ -150,13 +149,25 @@ public class HairController : MonoBehaviour
         cmdBuffer.SetData(cmdArgsBuffer);
     }
 
-    private void ShowResults(ComputeBuffer buffer)
+    private void ShowResults<T>(ComputeBuffer buffer)
     {
         //get all data from the buffer
-        Vector3[] data = new Vector3[buffer.count];
+        T[] data = new T[buffer.count];
         buffer.GetData(data);
         Debug.Log(data.Length);
-        for (int i = 0; i < data.Length; i+=3)
+        for (int i = 0; i < data.Length; i++)
+        {
+            Debug.Log($"Point {i}: {data[i]}");
+        }
+        Debug.Log("all showed");
+    }
+
+    private void ReadGraphicBuffer<T>(GraphicsBuffer buffer)
+    {
+        T[] data = new T[buffer.count];
+        buffer.GetData(data);
+        Debug.Log(data.Length);
+        for (int i = 0; i < data.Length; i++)
         {
             Debug.Log($"Point {i}: {data[i]}");
         }
@@ -166,5 +177,7 @@ public class HairController : MonoBehaviour
     private void CalcPositions()
     {
         strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+        ShowResults<Vector4>(quaternion);
+        ReadGraphicBuffer<float3>(vertexBuffer);
     }
 }

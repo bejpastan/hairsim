@@ -5,7 +5,7 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWStructuredBuffer<float3> _PointsPositions;
-RWStructuredBuffer<float3> _StrandStartNormal;
+RWStructuredBuffer<float4> _StrandQuaternion;
 int _Segments;
 int _Strands;
 
@@ -19,13 +19,22 @@ float3 _CapCenter;
 int _Lines;
 int _StrandsPerLine;
 
+//this must be optimizable
+float3 RotateByQuaternion(float3 v, float4 q)
+{
+    float3 t = 2.0 * cross(q.xyz, v);
+    return v + q.w * t + cross(q.xyz, t);
+}
+
 void CalcRingPositions(uint strandIndex)
 {
-    //float3 previousNormal = _StrandStartNormal[strandIndex];
-    //I need to be able to update positions later using Gauss Siedel method
-    for (uint segment = 1; segment < _Segments+1; segment++)
+    for (uint ring = 1; ring < _Segments+1; ring++)
     {   
-        _PointsPositions[strandIndex * (_Segments + 1) + segment] = _PointsPositions[strandIndex * (_Segments + 1) + segment - 1] + (_StrandStartNormal[strandIndex]);
+        //calc directiof from quaternion
+        float3 direction = normalize(RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[strandIndex * (_Segments + 1) + ring - 1]));
+        
+        _PointsPositions[strandIndex * (_Segments + 1) + ring] = _PointsPositions[strandIndex * (_Segments + 1) + ring - 1] + direction;
+        _StrandQuaternion[strandIndex * (_Segments + 1) + ring] = _StrandQuaternion[strandIndex * (_Segments + 1) + ring - 1];
     }
 }
 
@@ -35,18 +44,22 @@ void CalcStartPositionLines(uint strandIndex)
     //in future add here left/right/top/back range
     
     float lineIndex = floor(strandIndex / _StrandsPerLine);
-    uint atLineIndex = strandIndex - lineIndex * _StrandsPerLine;
-    float lerpedAtLineIndex = (float)atLineIndex - ((_StrandsPerLine - 1) / 2.0f);
+    float atLineIndex = strandIndex - lineIndex * _StrandsPerLine;
+    atLineIndex = (float)atLineIndex - ((_StrandsPerLine - 1) / 2.0f);
     
-    float xPos = ((((2 * _CapRadius) - (2 * _CapRadius / _Lines)) / (_Lines - 0.5f)) * lineIndex) + (_CapRadius / _Lines);//this works
-    float zChord = sqrt(-pow(xPos - _CapRadius, 2.0) + pow(_CapRadius, 2.0f));//in given xPosition
-    float zPos = 2*zChord * lerpedAtLineIndex/_StrandsPerLine;
+    float xPos = (lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines)); //this works(not exactly)
+    float zChord = sqrt(-pow(xPos, 2.0) + pow(_CapRadius, 2.0f));//in given xPosition
+    float zPos = 2*zChord * atLineIndex/_StrandsPerLine;
     
-    float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos - _CapRadius, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
+    float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
     
     _PointsPositions[strandIndex * (_Segments + 1)] = float3(xPos, yPos, zPos);
-    _StrandStartNormal[strandIndex * (_Segments + 1)] = float3(0, 0.1f, 0);
-
+    
+    float cos = dot(normalize(float3(xPos, yPos, zPos)), float3(0, 1, 0));
+    float sin = sqrt(1 - cos)/2;
+    cos = sqrt((1 + cos) / 2.0f);
+    float3 axis = normalize(cross(float3(0, 1, 0), normalize(float3(xPos, yPos, zPos))));
+    _StrandQuaternion[strandIndex * (_Segments + 1)] = normalize(float4(sin * axis, cos));
 }
 
 //thread groups x - number of instances

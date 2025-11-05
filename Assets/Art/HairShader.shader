@@ -21,6 +21,7 @@ Shader "Custom/HairShader"
             StructuredBuffer<float3> _Vertices;
             StructuredBuffer<int> _Indices;
             StructuredBuffer<float3> _Positions;
+            StructuredBuffer<float4> _Quternion;
             int _Segments;
 
             CBUFFER_START(UnityPerMaterial)
@@ -43,12 +44,19 @@ Shader "Custom/HairShader"
             {
                 v2f o;
                 uint vertexIndex = _Indices[v.vertexID];
-                float3 positionOS = _Vertices[vertexIndex]; 
+                float3 positionOS = _Vertices[vertexIndex];//local position of vertex from center of segment
 
-                float3 offset = _Positions[v.instanceID * (_Segments+1) + vertexIndex/4];
+                float4 quaternion = _Quternion[v.instanceID * (_Segments+1) + vertexIndex/4];
+                float3 centre = _Positions[v.instanceID * (_Segments+1) + vertexIndex/4];
 
-                float4 worldPosition = mul(unity_ObjectToWorld, float4(positionOS, 1.0));
-                worldPosition.xyz += offset;
+                float3 t = 2.0 * cross(quaternion.xyz, positionOS);
+                positionOS += quaternion.w * t + cross(quaternion.xyz, t);
+
+
+                //float4 worldPosition = mul(unity_ObjectToWorld, float4(positionOS, 1.0));
+                // worldPosition.xyz += centre;
+                float4 worldPosition = float4(positionOS + centre, 1.0);
+
                 o.positionCS = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, worldPosition));
                 o.color = _BaseColor;
                 

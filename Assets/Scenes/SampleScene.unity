@@ -154,7 +154,7 @@ MonoBehaviour:
   strandRadius: 0.1
   strandCount: 100
   lines: 10
-  capHeight: 2
+  capHeight: 4
   capRadius: 4
   hairMat: {fileID: 2100000, guid: 44a1e817e430c8e4c9f2f545f16ef6ee, type: 2}
 --- !u!4 &38255618
