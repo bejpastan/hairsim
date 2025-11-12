@@ -150,8 +150,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
   strandPositionShader: {fileID: 7200000, guid: 99b32450f20e6ea47acf252919ac62a6, type: 3}
-  segments: 2
+  segments: 10
   strandRadius: 0.1
+  strandLength: 0.2
   strandCount: 100
   lines: 10
   capHeight: 4
@@ -508,8 +509,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14c9cd3581c38884484863ed423f08e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  rebuild: 0
-  material: {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
 --- !u!4 &1464909937
 Transform:
   m_ObjectHideFlags: 0

@@ -16,6 +16,8 @@ public class HairController : MonoBehaviour
     [SerializeField]
     float strandRadius = 0.1f;
     [SerializeField]
+    float strandLength = 1.0f;
+    [SerializeField]
     int strandCount = 20;// add validating to be multiple of lines
 
     [SerializeField]
@@ -44,9 +46,14 @@ public class HairController : MonoBehaviour
     RenderParams renderParams;
     ComputeBuffer positions;
     ComputeBuffer quaternion;
+    ComputeBuffer velocities;
 
     int startPositionKernelLinesId;
     int positionKernelId;
+
+    #region position calculation
+    Vector3 lastPosition = new Vector3(0, 0, 0);
+    #endregion
 
 
     private void Start()
@@ -54,16 +61,18 @@ public class HairController : MonoBehaviour
         PrepareStructures();
     }
 
-    void Update()
+    private void Update()
     {
         Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
-        renderParams.matProps.SetBuffer("_Positions", positions);
+    }
 
+    void FixedUpdate()
+    {
+        renderParams.matProps.SetBuffer("_Positions", positions);
         if (Input.GetKeyDown(KeyCode.Space))
         {
             RebuildMesh();
         }
-
         CalcPositions();
         Debug.Log($"FPS: {1 / Time.deltaTime}");
     }
@@ -73,25 +82,33 @@ public class HairController : MonoBehaviour
     /// </summary>
     private void PrepareStructures()
     {
-        //positions shader setup
+        #region positions shader setup
         positionKernelId = strandPositionShader.FindKernel("CalcPosition");
         startPositionKernelLinesId = strandPositionShader.FindKernel("CalcStartPositionLines");
         positions = new ComputeBuffer((int)strandCount * (segments+1), sizeof(float) * 3);
         quaternion = new ComputeBuffer((int)strandCount * (segments + 1), sizeof(float) * 4);
+        velocities = new ComputeBuffer((int)strandCount * (segments + 1), sizeof(float) * 3);
+
         strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsPositions", positions);
         strandPositionShader.SetBuffer(positionKernelId, "_StrandQuaternion", quaternion);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_StrandQuaternion", quaternion);
+        strandPositionShader.SetBuffer(positionKernelId, "_PointsVelocities", velocities);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsVelocities", velocities);
 
         strandPositionShader.SetInt("_Lines", lines);
         strandPositionShader.SetInt("_StrandsPerLine", strandCount/lines);
         strandPositionShader.SetFloat("_CapHeight", capHeight);
         strandPositionShader.SetFloat("_CapRadius", capRadius);
+        strandPositionShader.SetFloat("_TimeStep", Time.fixedDeltaTime);
+        strandPositionShader.SetFloat("_SegmentLength", strandLength);
         strandPositionShader.SetInts("_Segments", segments);
         strandPositionShader.SetInts("_Strands", strandCount);
-        strandPositionShader.SetVector("_CapCenter", new float4(capRadius/2, 0, capRadius/2, 0));
+        strandPositionShader.SetVector("_CapPosition", new float4(transform.position, 0));
+        lastPosition = transform.position;
+        #endregion
 
-        //mesh shader setup
+        #region mesh shader setup
         verticesKernelId = strandMeshBuilder.FindKernel("BuildVertices");
         indicesKernelId = strandMeshBuilder.FindKernel("BuildIndices");
 
@@ -106,14 +123,15 @@ public class HairController : MonoBehaviour
         renderParams = new RenderParams(hairMat);
         renderParams.worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f);
         renderParams.matProps = new MaterialPropertyBlock();
+        #endregion
 
-
-        //setting buffers to material
+        #region setting buffers to material
         renderParams.matProps.SetBuffer("_Vertices", vertexBuffer);
         renderParams.matProps.SetBuffer("_Indices", indexBuffer);
         renderParams.matProps.SetBuffer("_Positions", positions);
         renderParams.matProps.SetBuffer("_Quternion", quaternion);
         renderParams.matProps.SetInt("_Segments", segments);
+        #endregion
 
         //create start positions
         strandPositionShader.Dispatch(startPositionKernelLinesId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
@@ -176,8 +194,10 @@ public class HairController : MonoBehaviour
 
     private void CalcPositions()
     {
+        //ShowResults<float3>(positions);
         strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
-        ShowResults<Vector4>(quaternion);
-        ReadGraphicBuffer<float3>(vertexBuffer);
+        strandPositionShader.SetVector("_CapTranslation", new float4(transform.position - lastPosition, 0));
+        //ShowResults<float3>(velocities);
+        lastPosition = transform.position;
     }
 }
