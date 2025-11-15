@@ -1,6 +1,7 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CalcPosition
 #pragma kernel CalcStartPositionLines
+#pragma kernel AddPoint
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
@@ -43,9 +44,9 @@ void CalcDistanceConstraint(float3 pos1, float3 pos2, uint pointIndex)
 {
     float distance = length(pos1 - pos2) - _SegmentLength;
     float3 direction = normalize(pos1 - pos2);
-    float invertedMassSum = _InvertedMasses[pointIndex - 1] + _InvertedMasses[pointIndex];
+    float invertedMassSum = _InvertedMasses[pointIndex - _Strands] + _InvertedMasses[pointIndex];
     _PointsVelocities[pointIndex] += direction * ((distance * _Stiffness) / (2 * _TimeStep) * (_InvertedMasses[pointIndex] / invertedMassSum));
-    _PointsVelocities[pointIndex - 1] -= direction * ((distance * _Stiffness) / (2 * _TimeStep) * (_InvertedMasses[pointIndex] / invertedMassSum));
+    _PointsVelocities[pointIndex - _Strands] -= direction * ((distance * _Stiffness) / (2 * _TimeStep) * (_InvertedMasses[pointIndex] / invertedMassSum));
 }
 
 void AddGravity(uint pointIndex)
@@ -63,20 +64,22 @@ void CalcBendConstraint(float3 pos1, float3 pos2, float3 pos3, uint pointIndex)
 
 void CalcRingPositions(uint strandIndex)
 {
-    uint baseIndex = strandIndex * (_Segments + 1);
+    //uint baseIndex = strandIndex * (_Segments + 1);
+    uint baseIndex = strandIndex;
     //apply cap motion
     _PointsPositions[baseIndex] = _PointsPositions[baseIndex] + _CapTranslation;
     //iterating over all points in strand
-    for (uint ring = 1; ring < _Segments + 1; ring++)
+    for (int ring = 1; ring < _Segments + 1; ring++)
     {
+        baseIndex = strandIndex + (_Strands * ring);
         //float3 direction = normalize(RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[baseIndex + ring - 1]));
-        CalcDistanceConstraint(_PointsPositions[baseIndex + ring - 1], _PointsPositions[baseIndex + ring], baseIndex + ring);
-        AddGravity(baseIndex + ring);
-        float3 direction = _PointsVelocities[baseIndex + ring] * _TimeStep;
-        _PointsPositions[baseIndex + ring] = _PointsPositions[baseIndex + ring] + direction;
+        CalcDistanceConstraint(_PointsPositions[baseIndex - _Strands], _PointsPositions[baseIndex], baseIndex);
+        AddGravity(baseIndex);
+        float3 direction = _PointsVelocities[baseIndex] * _TimeStep;
+        _PointsPositions[baseIndex] = _PointsPositions[baseIndex] + direction;
         //now left this unchanged
-        _StrandQuaternion[baseIndex + ring] = _StrandQuaternion[baseIndex + ring - 1];
-        _PointsVelocities[baseIndex + ring] *= _VelocityDumping;
+        _StrandQuaternion[baseIndex] = _StrandQuaternion[baseIndex - _Strands];//just for now
+        _PointsVelocities[baseIndex] *= _VelocityDumping;
     }
 }
 
@@ -95,23 +98,26 @@ void CalcStartPositionLines(uint strandIndex)
     
     float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
     
-    _PointsPositions[strandIndex * (_Segments + 1)] = float3(xPos, yPos, zPos) + _CapPosition;
+    _PointsPositions[strandIndex] = float3(xPos, yPos, zPos) + _CapPosition;
     
     float cos = dot(normalize(float3(xPos, yPos, zPos)), float3(0, 1, 0));
     float sin = sqrt(1 - cos)/2;
     cos = sqrt((1 + cos) / 2.0f);
     float3 axis = normalize(cross(float3(0, 1, 0), normalize(float3(xPos, yPos, zPos))));
-    _StrandQuaternion[strandIndex * (_Segments + 1)] = normalize(float4(sin * axis, cos));
-    _InvertedMasses[strandIndex * (_Segments + 1)] = 0;
+    _StrandQuaternion[strandIndex] = normalize(float4(sin * axis, cos));
+    _InvertedMasses[strandIndex] = 0;
     
     //calc position of other points in this strand
     for (uint ring = 1; ring < _Segments + 1; ring++)
     {
-        float3 direction = RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[strandIndex * (_Segments + 1) + ring - 1]);
-        _PointsPositions[strandIndex * (_Segments + 1) + ring] = _PointsPositions[strandIndex * (_Segments + 1) + ring - 1] + direction * _SegmentLength;
-        _StrandQuaternion[strandIndex * (_Segments + 1) + ring] = _StrandQuaternion[strandIndex * (_Segments + 1) + ring - 1];
-        _PointsVelocities[strandIndex * (_Segments + 1) + ring] = float3(0, 0, 0);
-        _InvertedMasses[strandIndex * (_Segments + 1) + ring] = 1;
+        //uint index = strandIndex * (_Segments + 1) + ring;
+        uint index = strandIndex + _Strands * ring;
+        
+        float3 direction = RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[index - _Strands]);
+        _PointsPositions[index] = _PointsPositions[index - _Strands] + direction * _SegmentLength;
+        _StrandQuaternion[index] = _StrandQuaternion[index - _Strands];
+        _PointsVelocities[index] = float3(0, 0, 0);
+        _InvertedMasses[index] = 1;
     }
 }
 
@@ -132,5 +138,20 @@ void CalcStartPositionLines(uint3 id : SV_DispatchThreadID)
     if (id.x < _Strands)
     {
         CalcStartPositionLines(id.x);
+    }
+}
+
+
+[numthreads(32, 1, 1)]
+void AddPoint(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x < _Strands)
+    {
+        uint index = id.x + (_Segments * _Strands);
+        float3 direction = RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[index - _Strands]);
+        _PointsPositions[index] = _PointsPositions[index - _Strands] + direction * _SegmentLength;
+        _StrandQuaternion[index] = _StrandQuaternion[index - _Strands];
+        _PointsVelocities[index] = _PointsVelocities[index - _Strands];
+        _InvertedMasses[index] = 1;
     }
 }
