@@ -148,7 +148,7 @@ void AddPoint(uint3 id : SV_DispatchThreadID)
     if(id.x < _Strands)
     {
         uint index = id.x + (_Segments * _Strands);
-        float3 direction = RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[index - _Strands]);
+        float3 direction = RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[index - _Strands]);//this failed due to not updating quaternions XD
         _PointsPositions[index] = _PointsPositions[index - _Strands] + direction * _SegmentLength;
         _StrandQuaternion[index] = _StrandQuaternion[index - _Strands];
         _PointsVelocities[index] = _PointsVelocities[index - _Strands];
