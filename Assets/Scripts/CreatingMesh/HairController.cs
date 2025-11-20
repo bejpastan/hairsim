@@ -17,18 +17,33 @@ public class HairController : MonoBehaviour
     int previousSegments = 0;
     [SerializeField]
     float strandRadius = 0.1f;
-    [SerializeField]
-    float strandLength = 1.0f;
+
     [SerializeField]
     int strandCount = 20;// add validating to be multiple of lines
 
+    [Header("PDB")]
     [SerializeField]
     [Range(0, 1)]
     float velocityDumping = 0.98f;
+    [Header("Distance Constraints")]
     [SerializeField]
     [Range(0,1)]
     float stiffness = 0.9f;
+    [SerializeField]
+    float strandLength = 1.0f;
+    [Header("Bend constraint")]
+    [SerializeField]
+    [Range(0, 1)]
+    float bendStiffness = 0.5f;
+    [SerializeField]
+    [Range(1, 179)]
+    float maxAngle;
+    float cosMaxAngle;
+    float halfSinMaxAngle;
+    float halfCosMaxAngle;
 
+
+    [Header("Cap settings")]
     [SerializeField]
     int lines = 4;
     int strandsInLine;
@@ -59,6 +74,8 @@ public class HairController : MonoBehaviour
     ComputeBuffer quaternion;
     ComputeBuffer velocities;
     ComputeBuffer invertedMasses;
+    ComputeBuffer preditcedPositions;
+    ComputeBuffer debugBuffer;
     #endregion
 
     int startPositionKernelLinesId;
@@ -89,7 +106,6 @@ public class HairController : MonoBehaviour
         renderParams.matProps.SetBuffer("_Positions", positions);
         renderParams.matProps.SetBuffer("_Quaternion", quaternion);//do I realy need to setup this here?
         CalcPositions();
-        //Debug.Log($"FPS: {1 / Time.deltaTime}");
     }
 
     /// <summary>
@@ -118,20 +134,26 @@ public class HairController : MonoBehaviour
         positions = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
         quaternion = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 4);
         velocities = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
+        preditcedPositions = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
         invertedMasses = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float));
+        debugBuffer = new ComputeBuffer(strandCount * (maxSegments+1) *4, sizeof(float) * 4);
 
         strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
         strandPositionShader.SetBuffer(positionKernelId, "_StrandQuaternion", quaternion);
         strandPositionShader.SetBuffer(positionKernelId, "_PointsVelocities", velocities);
         strandPositionShader.SetBuffer(positionKernelId, "_InvertedMasses", invertedMasses);
+        strandPositionShader.SetBuffer(positionKernelId, "_PredictedPositions", preditcedPositions);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsPositions", positions);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_StrandQuaternion", quaternion);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsVelocities", velocities);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_InvertedMasses", invertedMasses);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PredictedPositions", preditcedPositions);
         strandPositionShader.SetBuffer(addPointKernelId, "_PointsPositions", positions);
         strandPositionShader.SetBuffer(addPointKernelId, "_StrandQuaternion", quaternion);
         strandPositionShader.SetBuffer(addPointKernelId, "_PointsVelocities", velocities);
         strandPositionShader.SetBuffer(addPointKernelId, "_InvertedMasses", invertedMasses);
+        strandPositionShader.SetBuffer(addPointKernelId, "_PredictedPositions", preditcedPositions);
+        strandPositionShader.SetBuffer(positionKernelId, "_DebugBuffer", debugBuffer);
 
         strandPositionShader.SetInt("_Lines", lines);
         strandPositionShader.SetInt("_StrandsPerLine", strandCount / lines);
@@ -145,6 +167,16 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetFloat("_VelocityDumping", velocityDumping);
         strandPositionShader.SetFloat("_Stiffness", stiffness);
         lastPosition = transform.position;
+
+        cosMaxAngle = Mathf.Cos(maxAngle * Mathf.Deg2Rad);
+        halfSinMaxAngle = Mathf.Sin(maxAngle/2 * Mathf.Deg2Rad);
+        halfCosMaxAngle = Mathf.Cos(maxAngle/2 * Mathf.Deg2Rad);
+        strandPositionShader.SetFloat("_BendStiffness", bendStiffness);
+        strandPositionShader.SetFloat("_BendCos", cosMaxAngle);
+        strandPositionShader.SetFloat("_BendHalfCos", halfCosMaxAngle);
+        strandPositionShader.SetFloat("_BendHalfSin", halfSinMaxAngle);
+        strandPositionShader.SetFloat("_BendAngle", maxAngle);
+
         #endregion
 
     }
@@ -223,10 +255,11 @@ public class HairController : MonoBehaviour
         T[] data = new T[buffer.count];
         buffer.GetData(data);
         Debug.Log(data.Length);
-        for (int i = 0; i < data.Length; i++)
+        for (int i = 16; i < 32; i++)
         {
             Debug.Log($"Point {i}: {data[i]}");
         }
+
         Debug.Log("all showed");
     }
 
@@ -247,5 +280,6 @@ public class HairController : MonoBehaviour
         strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
         strandPositionShader.SetVector("_CapTranslation", new float4(transform.position - lastPosition, 0));
         lastPosition = transform.position;
+        ShowResults<float4>(debugBuffer);
     }
 }
