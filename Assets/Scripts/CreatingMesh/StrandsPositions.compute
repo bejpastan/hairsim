@@ -74,53 +74,68 @@ void CalcBendConstraint(float3 pos1, float3 pos2, float3 pos3, uint pointIndex)
     //calculating projection
     float aLength = length(pos2 - pos1);
     
-    float cabCos = dot(normalize(pos2 - pos1), normalize(pos3 - pos1));
+    //float cabCos = dot(normalize(pos2 - pos1), normalize(pos3 - pos1));
     
-    float q = cabCos * aLength; //this is distance from pos1 to projected point on line pos1->pos3
-    float c = length(pos1 - pos3);
-    float p = c - q;
+    float q = dot(normalize(pos2 - pos1), normalize(pos3 - pos1)) * aLength; //this is distance from pos1 to projected point on line pos1->pos3
+    //float q = cabCos * aLength;
+    
+    //float c = length(pos1 - pos3);
+    //float p = c - q;
+    float p = length(pos1 - pos3) - q;
     float3 dPoint = normalize(pos3 - pos1) * q + pos1; //this is point where pos2 is projected onto line pos1->pos3
     
-    
+    //float dLength = length(dPoint - pos2); //current distance from projected point to pos2
     float dLength = length(dPoint - pos2); //current distance from projected point to pos2
     float3 directionVector = normalize(dPoint - pos2); //from d to c
     
-    if (currentCos > _BendCos)
-    {
-        return;
-    }
+
     
     //calculating distance from projected point to required point
     float A = 1 - (_BendCos * _BendCos); //here is 1-k^2 where k is cos of angle between AC and BC, but cos(180-alpha) = -cos(alpha) so I can use just cos value
-    float B = (-2 * p * q) - (_BendCos * _BendCos)*(p*p + q*q);
+    float B = (-2 * p * q) - (_BendCos * _BendCos) * (p * p + q * q);
     float C = p * p * q * q * A; //here is p^2 * q^2 * (1 - k^2) but 1-k^2 is A
     //so here I have x_1 and x_2 and now I need to get root from them, and decide which one to use
     float x_1 = max((-B + sqrt(B * B - 4 * A * C)) / (2 * A), 0);
     float x_2 = max((-B - sqrt(B * B - 4 * A * C)) / (2 * A), 0);
-   
-    float requiredDistance = max(min(sqrt(max(x_1, 0)), dLength), min(sqrt(max(x_2, 0)), dLength));//this is wrong, because I need to find a solution that is closer  
     
-    float3 requiredPosition = dPoint + directionVector * requiredDistance;
-    float3 correction = requiredPosition - pos2;   
-    
+    //float requiredDistance = max(min(sqrt(max(x_1, 0)), dLength), min(sqrt(max(x_2, 0)), dLength));//this need to handle also when dLength is shorter then required
+    x_1 = sqrt(max(x_1, 0));
+    x_2 = sqrt(max(x_2, 0));
+    float requiredDistance = max(max(x_1, 0) * sign(_BendCos * -1), max(x_2, 0) * sign(_BendCos * -1)) * sign(_BendCos * -1);
+
     int index = pointIndex - _Strands;
     float multiplier = clamp(index, 0, 1);
     index = max(0, index);
     
     float massSum = _InvertedMasses[index] + _InvertedMasses[pointIndex] + _InvertedMasses[pointIndex + _Strands];
-    //_PredictedPositions[pointIndex] += _BendStiffness * _InvertedMasses[pointIndex] * correction;
     
-    _PredictedPositions[index] += _BendStiffness * (_InvertedMasses[index] / massSum) * -correction * multiplier;
-    _PredictedPositions[pointIndex] += _BendStiffness * (_InvertedMasses[pointIndex] / massSum) * correction;
-    _PredictedPositions[pointIndex + _Strands] += _BendStiffness * (_InvertedMasses[pointIndex + _Strands] / massSum) * -correction;
-
-    //this is old method
-    //float3 axis = normalize(cross(a, b));
-    //float4 quaternion = float4(axis * _BendHalfSin, _BendHalfCos);
-    //float3 newPosition = normalize(RotateByQuaternion(a, quaternion)) * currentLength;
-    //float3 correction = newPosition - (b * currentLength);
-    //float invertedMassSum = _InvertedMasses[pointIndex - _Strands] + _InvertedMasses[pointIndex + _Strands];
-    //_PredictedPositions[pointIndex + _Strands] += _BendStiffness * correction * invertedMassSum / _InvertedMasses[pointIndex + _Strands];
+    //float reduceMultiplier = ceil(requiredDistance - dLength);
+    float correctionMultiplier = 1 - ceil(requiredDistance - dLength);
+  
+    //_DebugBuffer[pointIndex] = float4(reduceMultiplier, currentCos, _BendCos, correctionMultiplier);
+    
+    //this 
+    float3 requiredPosition = dPoint + directionVector * requiredDistance;
+    float3 correction = (requiredPosition - pos2) * correctionMultiplier; 
+    
+    
+    //float3 forceDirection = _PointsVelocities[index];
+    //float3 reduceDirection = normalize(float3(forceDirection.x * dot(normalize(forceDirection), float3(1, 0, 0)), forceDirection.y * dot(normalize(forceDirection), float3(0, 1, 0)), forceDirection.z * dot(normalize(forceDirection), float3(0, 0, 1))));
+    //reduceMultiplier = dLength / requiredDistance * reduceMultiplier * _BendStiffness;
+    //reduceDirection = float3(0, 0, 0);
+    
+    
+    _PredictedPositions[index] += _BendStiffness * (_InvertedMasses[index] / massSum) * (-correction * correctionMultiplier);
+    //forceDirection = _PointsVelocities[pointIndex];
+    //reduceDirection = float3(forceDirection.x * dot(normalize(forceDirection), float3(1, 0, 0)), forceDirection.y * dot(normalize(forceDirection), float3(0, 1, 0)), forceDirection.z * dot(normalize(forceDirection), float3(0, 0, 1)));
+    _PredictedPositions[pointIndex] += _BendStiffness * (_InvertedMasses[pointIndex] / massSum) * (correction * correctionMultiplier);
+    //forceDirection = _PointsVelocities[pointIndex + _Strands];
+    //reduceDirection = float3(forceDirection.x * dot(normalize(forceDirection), float3(1, 0, 0)), forceDirection.y * dot(normalize(forceDirection), float3(0, 1, 0)), forceDirection.z * dot(normalize(forceDirection), float3(0, 0, 1)));
+    _PredictedPositions[pointIndex + _Strands] += _BendStiffness * (_InvertedMasses[pointIndex + _Strands] / massSum) * (-correction * correctionMultiplier);
+    //_PredictedPositions[index] += _BendStiffness * (_InvertedMasses[index] / massSum) * -correction;
+    //_PredictedPositions[pointIndex] += _BendStiffness * (_InvertedMasses[pointIndex] / massSum) * correction;
+    //_PredictedPositions[pointIndex + _Strands] += _BendStiffness * (_InvertedMasses[pointIndex + _Strands] / massSum) * -correction;
+    
 }
 
 void RecalcQuaternion(uint pointIndex)

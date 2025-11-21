@@ -187,9 +187,11 @@ public class HairController : MonoBehaviour
         cmdBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, COMMAND_COUNT, GraphicsBuffer.IndirectDrawArgs.size);
         cmdArgsBuffer = new GraphicsBuffer.IndirectDrawArgs[COMMAND_COUNT];
 
-        renderParams = new(hairMat);
-        renderParams.worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f);
-        renderParams.matProps = new MaterialPropertyBlock();
+        renderParams = new(hairMat)
+        {
+            worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f),
+            matProps = new MaterialPropertyBlock()
+        };
         #endregion
     }
 
@@ -249,15 +251,22 @@ public class HairController : MonoBehaviour
     private void ShowResults<T>(ComputeBuffer buffer)
     {
         //get all data from the buffer
-        T[] data = new T[buffer.count];
+        float4[] data = new float4[buffer.count];
         buffer.GetData(data);
-        Debug.Log(data.Length);
-        for (int i = 0; i < 32; i++)
+        //Debug.Log(data.Length);
+        for (int i = 0; i < 16; i++)
         {
-            Debug.Log($"Point {i}: {data[i]}");
+            if (data[i].x == data[i].w)
+            {
+                Debug.LogWarning($"Point error {data[i]}");
+            }
+            else
+            {
+                Debug.Log($"Point {i}: {data[i]}");
+            }
         }
 
-        Debug.Log("all showed");
+        //Debug.Log("all showed");
     }
 
     private void ReadGraphicBuffer<T>(GraphicsBuffer buffer)

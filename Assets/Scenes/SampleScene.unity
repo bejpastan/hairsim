@@ -157,8 +157,8 @@ MonoBehaviour:
   velocityDumping: 0.98
   stiffness: 1
   strandLength: 0.5
-  bendStiffness: 0.05
-  maxAngle: 15
+  bendStiffness: 0.5
+  maxAngle: 60
   lines: 2
   capHeight: 4
   capRadius: 4
