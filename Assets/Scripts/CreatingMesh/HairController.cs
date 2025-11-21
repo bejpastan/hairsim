@@ -1,9 +1,5 @@
 using UnityEngine;
 using Unity.Mathematics;
-using System.Threading.Tasks;
-using System.Collections;
-using Unity.VisualScripting;
-using System.Collections.Generic;
 
 public class HairController : MonoBehaviour
 {
@@ -13,6 +9,7 @@ public class HairController : MonoBehaviour
     ComputeShader strandPositionShader;
     [SerializeField]
     int segments;
+    [SerializeField]
     int maxSegments = 100;
     int previousSegments = 0;
     [SerializeField]
@@ -36,7 +33,7 @@ public class HairController : MonoBehaviour
     [Range(0, 1)]
     float bendStiffness = 0.5f;
     [SerializeField]
-    [Range(1, 179)]
+    [Range(0, 180)]
     float maxAngle;
     float cosMaxAngle;
     float halfSinMaxAngle;
@@ -46,7 +43,7 @@ public class HairController : MonoBehaviour
     [Header("Cap settings")]
     [SerializeField]
     int lines = 4;
-    int strandsInLine;
+    readonly int strandsInLine;
 
     [SerializeField]
     float capHeight = 2.0f;
@@ -83,7 +80,7 @@ public class HairController : MonoBehaviour
     int addPointKernelId;
 
     #region position calculation
-    Vector3 lastPosition = new Vector3(0, 0, 0);
+    Vector3 lastPosition = new(0, 0, 0);
     #endregion
 
 
@@ -190,7 +187,7 @@ public class HairController : MonoBehaviour
         cmdBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, COMMAND_COUNT, GraphicsBuffer.IndirectDrawArgs.size);
         cmdArgsBuffer = new GraphicsBuffer.IndirectDrawArgs[COMMAND_COUNT];
 
-        renderParams = new RenderParams(hairMat);
+        renderParams = new(hairMat);
         renderParams.worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f);
         renderParams.matProps = new MaterialPropertyBlock();
         #endregion
@@ -255,7 +252,7 @@ public class HairController : MonoBehaviour
         T[] data = new T[buffer.count];
         buffer.GetData(data);
         Debug.Log(data.Length);
-        for (int i = 16; i < 32; i++)
+        for (int i = 0; i < 32; i++)
         {
             Debug.Log($"Point {i}: {data[i]}");
         }
@@ -279,6 +276,7 @@ public class HairController : MonoBehaviour
     {
         strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
         strandPositionShader.SetVector("_CapTranslation", new float4(transform.position - lastPosition, 0));
+        strandPositionShader.SetVector("_CapPosition", new float4(transform.position, 0));
         lastPosition = transform.position;
         ShowResults<float4>(debugBuffer);
     }

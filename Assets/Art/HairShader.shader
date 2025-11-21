@@ -44,9 +44,8 @@ Shader "Custom/HairShader"
             {
                 v2f o;
                 uint vertexIndex = _Indices[v.vertexID];
-                float3 positionOS = _Vertices[vertexIndex];//local position of vertex from center of segment
+                float3 positionOS = _Vertices[vertexIndex];
 
-                //int index = v.instanceID * (_Strands+1) + vertexIndex/4
                 int index = v.instanceID + (_Strands * (vertexIndex/4));
 
                 float4 quaternion = _Quternion[index];
@@ -55,9 +54,6 @@ Shader "Custom/HairShader"
                 float3 t = 2.0 * cross(quaternion.xyz, positionOS);
                 positionOS += quaternion.w * t + cross(quaternion.xyz, t);
 
-
-                //float4 worldPosition = mul(unity_ObjectToWorld, float4(positionOS, 1.0));
-                // worldPosition.xyz += centre;
                 float4 worldPosition = float4(positionOS + centre, 1.0);
 
                 o.positionCS = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, worldPosition));
