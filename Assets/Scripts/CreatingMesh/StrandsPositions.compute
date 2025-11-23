@@ -116,7 +116,7 @@ void CalcBendConstraint(float3 pos1, float3 pos2, float3 pos3, uint pointIndex)
     
     //this 
     float3 requiredPosition = dPoint + directionVector * requiredDistance;
-    float3 correction = (requiredPosition - pos2) * correctionMultiplier; 
+    float3 correction = (requiredPosition - pos2) * correctionMultiplier;
     
     
     //float3 forceDirection = _PointsVelocities[index];
@@ -136,6 +136,38 @@ void CalcBendConstraint(float3 pos1, float3 pos2, float3 pos3, uint pointIndex)
     //_PredictedPositions[pointIndex] += _BendStiffness * (_InvertedMasses[pointIndex] / massSum) * correction;
     //_PredictedPositions[pointIndex + _Strands] += _BendStiffness * (_InvertedMasses[pointIndex + _Strands] / massSum) * -correction;
     
+}
+
+void CalcBendConstraint_v2(float3 pos1, float3 pos2, float3 pos3, uint pointIndex)
+{
+    int index = pointIndex - _Strands;
+    float multiplier = clamp(index, 0, 1);
+    index = max(0, index);
+    
+    float3 aDir = normalize(pos2 - pos1);
+    float3 bDir = normalize(pos3 - pos2);
+    float currentCos = dot(aDir, bDir);
+    float aLen = length(pos1 - pos2);
+    float bLen = length(pos3 - pos2);
+    float3 direction = normalize(pos3 - pos1);
+    
+    float currentDistance = length(pos1 - pos3);
+    float requiredDistance = sqrt((aLen * aLen) + (bLen * bLen) + (2 * aLen * bLen * _BendCos)); //so I use bend cosine, because cosine inside triangle is cos(alptha -180)
+    
+    //this return wrong results
+    //float correctionMultiplier = clamp(ceil(requiredDistance - currentDistance), 0, 1); //this is not stable in angles greater then 90
+    float correctionMultiplier = clamp(ceil(abs(_BendCos) - abs(currentCos)), 0, 1);
+    
+    float massSum = _InvertedMasses[index] + _InvertedMasses[pointIndex + _Strands];
+    
+    float3 correction = correctionMultiplier * _BendStiffness * (requiredDistance - currentDistance) * direction;
+    
+    _DebugBuffer[pointIndex*2] = float4(currentDistance, requiredDistance, currentCos, _BendCos);
+    _DebugBuffer[pointIndex * 2 + 1] = float4(correction, correctionMultiplier);
+    
+    
+    _PredictedPositions[index] += correction * (_InvertedMasses[index] / massSum);
+    _PredictedPositions[pointIndex + _Strands] += correction * (_InvertedMasses[pointIndex + _Strands] / massSum);
 }
 
 void RecalcQuaternion(uint pointIndex)
@@ -187,11 +219,12 @@ void CalcRingPositions(uint strandIndex)
         CalcDistanceConstraint(_PredictedPositions[baseIndex - _Strands], _PredictedPositions[baseIndex], baseIndex);
     }
     
-    CalcBendConstraint(_PredictedPositions[strandIndex] - normalize(_PredictedPositions[strandIndex] - _CapPosition) * _SegmentLength, _PredictedPositions[strandIndex], _PredictedPositions[strandIndex + _Strands], strandIndex);
+    //this have wrong pos1 calculation
+    CalcBendConstraint_v2(_PredictedPositions[strandIndex] - normalize(RotateByQuaternion(float3(0, 1, 0), _StrandQuaternion[strandIndex])) * _SegmentLength, _PredictedPositions[strandIndex], _PredictedPositions[strandIndex + _Strands], strandIndex);
     for (int ring = 1; ring < _Segments; ring++)
     {
         baseIndex = strandIndex + (_Strands * ring);
-        CalcBendConstraint(_PredictedPositions[baseIndex - _Strands], _PredictedPositions[baseIndex], _PredictedPositions[baseIndex + _Strands], baseIndex);
+        CalcBendConstraint_v2(_PredictedPositions[baseIndex - _Strands], _PredictedPositions[baseIndex], _PredictedPositions[baseIndex + _Strands], baseIndex);
     }
    
     //update velocities and positions

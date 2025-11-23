@@ -254,16 +254,9 @@ public class HairController : MonoBehaviour
         float4[] data = new float4[buffer.count];
         buffer.GetData(data);
         //Debug.Log(data.Length);
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < 8; i++)
         {
-            if (data[i].x == data[i].w)
-            {
-                Debug.LogWarning($"Point error {data[i]}");
-            }
-            else
-            {
-                Debug.Log($"Point {i}: {data[i]}");
-            }
+            Debug.Log($"Point {i}: {data[i]}");
         }
 
         //Debug.Log("all showed");
@@ -287,6 +280,5 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetVector("_CapTranslation", new float4(transform.position - lastPosition, 0));
         strandPositionShader.SetVector("_CapPosition", new float4(transform.position, 0));
         lastPosition = transform.position;
-        ShowResults<float4>(debugBuffer);
     }
 }
