@@ -22,7 +22,11 @@ Shader "Custom/HairShader"
             StructuredBuffer<int> _Indices;
             StructuredBuffer<float3> _Positions;
             StructuredBuffer<float4> _Quternion;
+            StructuredBuffer<float4> _SegmentQuternion;
             int _Strands;
+            int _Segments;
+
+            float4 IDENTITY = float4(0,0,0,1);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
@@ -49,6 +53,14 @@ Shader "Custom/HairShader"
                 int index = v.instanceID + (_Strands * (vertexIndex/4));
 
                 float4 quaternion = _Quternion[index];
+
+                // uint first_segment_id = index - ((max(index - _Strands+1, 0)/max(index - _Strands+1, 1))*_Strands);
+
+                // float4 quaternion_1 = _SegmentQuternion[first_segment_id];
+                // float4 quaternion_2 = _SegmentQuternion[index];
+
+                // quaternion = normalize(quaternion_1 + quaternion_2);
+
                 float3 centre = _Positions[index];
 
                 float3 t = 2.0 * cross(quaternion.xyz, positionOS);

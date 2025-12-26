@@ -67,12 +67,17 @@ public class HairController : MonoBehaviour
     RenderParams renderParams;
 
     #region Points buffers
+    ComputeBuffer pointsPositionData;
     ComputeBuffer positions;
-    ComputeBuffer quaternion;
-    ComputeBuffer velocities;
+    ComputeBuffer ringQuaternion;
+    ComputeBuffer segmentsQuaternions;//new
+    //ComputeBuffer velocities;
+    ComputeBuffer angularV;//new
     ComputeBuffer invertedMasses;
-    ComputeBuffer preditcedPositions;
-    ComputeBuffer debugBuffer;
+    ComputeBuffer invertedIntertias;//new
+    //ComputeBuffer preditcedPositions;
+    ComputeBuffer predictedQuaternions; //new
+    //ComputeBuffer debugBuffer;
     #endregion
 
     int startPositionKernelLinesId;
@@ -83,6 +88,9 @@ public class HairController : MonoBehaviour
     Vector3 lastPosition = new(0, 0, 0);
     #endregion
 
+    #region rotation calculation
+    Quaternion lastRotation = Quaternion.identity;
+    #endregion
 
     private void Start()
     {
@@ -101,7 +109,7 @@ public class HairController : MonoBehaviour
     void FixedUpdate()
     {
         renderParams.matProps.SetBuffer("_Positions", positions);
-        renderParams.matProps.SetBuffer("_Quaternion", quaternion);//do I realy need to setup this here?
+        renderParams.matProps.SetBuffer("_Quaternion", ringQuaternion);//do I realy need to setup this here?
         CalcPositions();
     }
 
@@ -129,28 +137,48 @@ public class HairController : MonoBehaviour
         addPointKernelId = strandPositionShader.FindKernel("AddPoint");
 
         positions = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
-        quaternion = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 4);
-        velocities = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
-        preditcedPositions = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
+        ringQuaternion = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 4);
+        //velocities = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
+        //preditcedPositions = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
+        pointsPositionData = new ComputeBuffer((int)strandCount * (maxSegments + 1)*2, sizeof(float) * 3);
         invertedMasses = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float));
-        debugBuffer = new ComputeBuffer(strandCount * (maxSegments+1) *4, sizeof(float) * 4);
+        segmentsQuaternions = new ComputeBuffer(strandCount*maxSegments, sizeof(float)*4);
+        angularV = new ComputeBuffer(strandCount*maxSegments, sizeof(float)*3);
+        invertedIntertias = new ComputeBuffer(strandCount * maxSegments, sizeof(float));
+        predictedQuaternions = new ComputeBuffer(strandCount * maxSegments, sizeof(float) * 4);
 
+        //strandPositionShader.SetBuffer(positionKernelId, "_PredictedPositions", preditcedPositions);
+        //strandPositionShader.SetBuffer(positionKernelId, "_PointsVelocities", velocities);
+        strandPositionShader.SetBuffer(positionKernelId, "_PointData", pointsPositionData);
         strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
-        strandPositionShader.SetBuffer(positionKernelId, "_StrandQuaternion", quaternion);
-        strandPositionShader.SetBuffer(positionKernelId, "_PointsVelocities", velocities);
+        strandPositionShader.SetBuffer(positionKernelId, "_RingQuaternions", ringQuaternion);
         strandPositionShader.SetBuffer(positionKernelId, "_InvertedMasses", invertedMasses);
-        strandPositionShader.SetBuffer(positionKernelId, "_PredictedPositions", preditcedPositions);
+        strandPositionShader.SetBuffer(positionKernelId, "_SegmentsQuaternions", segmentsQuaternions);
+        strandPositionShader.SetBuffer(positionKernelId, "_AngularVelocities", angularV);
+        strandPositionShader.SetBuffer(positionKernelId, "_PredictedQuaternions", predictedQuaternions);
+        strandPositionShader.SetBuffer(positionKernelId, "_InvertedInterias", invertedIntertias);
+
+        //strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PredictedPositions", preditcedPositions);
+        //strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsVelocities", velocities);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointData", pointsPositionData);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsPositions", positions);
-        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_StrandQuaternion", quaternion);
-        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PointsVelocities", velocities);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_RingQuaternions", ringQuaternion);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_InvertedMasses", invertedMasses);
-        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PredictedPositions", preditcedPositions);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_SegmentsQuaternions", segmentsQuaternions);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_AngularVelocities", angularV);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PredictedQuaternions", predictedQuaternions);
+        strandPositionShader.SetBuffer(startPositionKernelLinesId, "_InvertedInterias", invertedIntertias);
+
+        //strandPositionShader.SetBuffer(addPointKernelId, "_PredictedPositions", preditcedPositions);
+        //strandPositionShader.SetBuffer(addPointKernelId, "_PointsVelocities", velocities);
+        strandPositionShader.SetBuffer(addPointKernelId, "_PointData", pointsPositionData);
         strandPositionShader.SetBuffer(addPointKernelId, "_PointsPositions", positions);
-        strandPositionShader.SetBuffer(addPointKernelId, "_StrandQuaternion", quaternion);
-        strandPositionShader.SetBuffer(addPointKernelId, "_PointsVelocities", velocities);
+        strandPositionShader.SetBuffer(addPointKernelId, "_RingQuaternions", ringQuaternion);
         strandPositionShader.SetBuffer(addPointKernelId, "_InvertedMasses", invertedMasses);
-        strandPositionShader.SetBuffer(addPointKernelId, "_PredictedPositions", preditcedPositions);
-        strandPositionShader.SetBuffer(positionKernelId, "_DebugBuffer", debugBuffer);
+        strandPositionShader.SetBuffer(addPointKernelId, "_SegmentsQuaternions", segmentsQuaternions);
+        strandPositionShader.SetBuffer(addPointKernelId, "_AngularVelocities", angularV);
+        strandPositionShader.SetBuffer(addPointKernelId, "_PredictedQuaternions", predictedQuaternions);
+        strandPositionShader.SetBuffer(addPointKernelId, "_InvertedInterias", invertedIntertias);
 
         strandPositionShader.SetInt("_Lines", lines);
         strandPositionShader.SetInt("_StrandsPerLine", strandCount / lines);
@@ -163,6 +191,7 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetVector("_CapPosition", new float4(transform.position, 0));
         strandPositionShader.SetFloat("_VelocityDumping", velocityDumping);
         strandPositionShader.SetFloat("_Stiffness", stiffness);
+        strandPositionShader.SetFloat("_IterationCount", 1);
         lastPosition = transform.position;
 
         cosMaxAngle = Mathf.Cos(maxAngle * Mathf.Deg2Rad);
@@ -199,7 +228,7 @@ public class HairController : MonoBehaviour
     {
         #region setting buffers to material
         renderParams.matProps.SetBuffer("_Positions", positions);
-        renderParams.matProps.SetBuffer("_Quternion", quaternion);
+        renderParams.matProps.SetBuffer("_Quternion", ringQuaternion);
         renderParams.matProps.SetInt("_Strands", strandCount);
         #endregion
     }
@@ -251,10 +280,10 @@ public class HairController : MonoBehaviour
     private void ShowResults<T>(ComputeBuffer buffer)
     {
         //get all data from the buffer
-        float4[] data = new float4[buffer.count];
+        T[] data = new T[buffer.count];
         buffer.GetData(data);
         //Debug.Log(data.Length);
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < data.Length; i++)
         {
             Debug.Log($"Point {i}: {data[i]}");
         }
@@ -276,9 +305,23 @@ public class HairController : MonoBehaviour
 
     private void CalcPositions()
     {
-        strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+        ShowResults<float4>(segmentsQuaternions);
+        //ShowResults<float4>(ringQuaternion);
         strandPositionShader.SetVector("_CapTranslation", new float4(transform.position - lastPosition, 0));
         strandPositionShader.SetVector("_CapPosition", new float4(transform.position, 0));
+
+        float4 capRotationDelta = new float4((transform.rotation * Quaternion.Inverse(lastRotation)).x,
+                                                    (transform.rotation * Quaternion.Inverse(lastRotation)).y,
+                                                    (transform.rotation * Quaternion.Inverse(lastRotation)).z,
+                                                    (transform.rotation * Quaternion.Inverse(lastRotation)).w);
+        strandPositionShader.SetVector("_CapRotationDelta", capRotationDelta);
+
+        strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+
+        Debug.Log(capRotationDelta);
         lastPosition = transform.position;
+        lastRotation = transform.rotation;
+        ShowResults<float4>(segmentsQuaternions);
+        ShowResults<float4>(ringQuaternion);
     }
 }
