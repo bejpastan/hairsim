@@ -235,10 +235,10 @@ void CalcRingPositions_v2(uint strandIndex)
     _PredictedQuaternions[strandIndex] = _SegmentsQuaternions[strandIndex];
     
     //applying external forces
-    //for (int ring = 1; ring < _Segments + 1; ring++)
-    //{
-    //    AddGravity(strandIndex + (_Strands * ring));
-    //}
+    for (int ring = 1; ring < _Segments + 1; ring++)
+    {
+        AddGravity(strandIndex + (_Strands * ring));
+    }
     
     //damp velocities and predict positions
     for (int ring = 1; ring < _Segments + 1; ring++)
