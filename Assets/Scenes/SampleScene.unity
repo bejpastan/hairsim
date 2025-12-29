@@ -150,13 +150,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
   strandPositionShader: {fileID: 7200000, guid: 99b32450f20e6ea47acf252919ac62a6, type: 3}
-  segments: 10
-  maxSegments: 10
-  strandRadius: 0.01
+  segments: 20
+  maxSegments: 25
+  strandRadius: 0.02
   strandCount: 10000
-  velocityDumping: 0.98
-  stiffness: 0.21
-  strandLength: 0.25
+  velocityDumping: 0.95
+  stiffness: 1
+  strandLength: 0.2
   bendStiffness: 1
   maxAngle: 10
   lines: 100
@@ -265,7 +265,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalPosition: {x: 2, y: 1, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

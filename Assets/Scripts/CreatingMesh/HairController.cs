@@ -191,7 +191,7 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetVector("_CapPosition", new float4(transform.position, 0));
         strandPositionShader.SetFloat("_VelocityDumping", velocityDumping);
         strandPositionShader.SetFloat("_Stiffness", stiffness);
-        strandPositionShader.SetFloat("_IterationCount", 1);
+        strandPositionShader.SetFloat("_IterationCount", 5);
         lastPosition = transform.position;
 
         cosMaxAngle = Mathf.Cos(maxAngle * Mathf.Deg2Rad);
@@ -229,6 +229,7 @@ public class HairController : MonoBehaviour
         #region setting buffers to material
         renderParams.matProps.SetBuffer("_Positions", positions);
         renderParams.matProps.SetBuffer("_Quternion", ringQuaternion);
+        renderParams.matProps.SetBuffer("_SegmentQuternion", segmentsQuaternions);
         renderParams.matProps.SetInt("_Strands", strandCount);
         #endregion
     }

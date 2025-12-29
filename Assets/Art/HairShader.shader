@@ -52,14 +52,10 @@ Shader "Custom/HairShader"
 
                 int index = v.instanceID + (_Strands * (vertexIndex/4));
 
-                float4 quaternion = _Quternion[index];
-
-                // uint first_segment_id = index - ((max(index - _Strands+1, 0)/max(index - _Strands+1, 1))*_Strands);
-
-                // float4 quaternion_1 = _SegmentQuternion[first_segment_id];
-                // float4 quaternion_2 = _SegmentQuternion[index];
-
-                // quaternion = normalize(quaternion_1 + quaternion_2);
+                uint first_segment_id = index -((max(index - _Strands + 1, 0) / max(index - _Strands + 1, 1)) * _Strands);
+                float4 quaternion_1 = _SegmentQuternion[first_segment_id];
+                float4 quaternion_2 = _SegmentQuternion[index];
+                float4 quaternion = normalize(quaternion_1 + quaternion_2);
 
                 float3 centre = _Positions[index];
 

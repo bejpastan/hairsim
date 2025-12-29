@@ -105,22 +105,6 @@ void RecalcQuaternion(uint pointIndex)
     float4 quaternion_1 = _SegmentsQuaternions[first_segment_id];
     float4 quaternion_2 = _SegmentsQuaternions[pointIndex];
     _RingQuaternions[pointIndex] = normalize(quaternion_1 + quaternion_2);
-    
-    //float3 direction = normalize(_PointsPositions[pointIndex] - _PointsPositions[(pointIndex - _Strands)]);
-    //float cos = dot(direction, float3(0, 1, 0));
-    //float sin = sqrt(1 - cos) / 2;
-    //cos = sqrt((1 + cos) / 2.0f);
-    //float3 axis;
-    //if (direction.x == 0 && direction.z == 0)
-    //{
-    //    axis = float3(0, direction.y, 0);
-    //}
-    //else
-    //{
-    //    axis = normalize(cross(float3(0, 1, 0), direction));
-    //}
-    ////here I need to add validation for axis if it's zero vector
-    //_RingQuaternions[pointIndex] = normalize(float4(sin * axis, cos));
 }
 
 //to remamber, I have quaternion as (ai, bj, ck, d)
@@ -140,7 +124,6 @@ void CalcRingPositions(uint strandIndex)
     //apply cap motion
     _PointsPositions[strandIndex] += _CapTranslation;
 
-    
     //predicted position
     _PointData[2 * (strandIndex)] = _PointsPositions[strandIndex];
     
@@ -191,12 +174,11 @@ void CalcDistantConstraint_v2(float3 pos1, float3 pos2, float4 quaternion, uint 
     float invertedSum = _InvertedMasses[point1Index] + _InvertedMasses[point1Index + _Strands] + (4 * _InvertedInterias[point1Index] * _SegmentLength * _SegmentLength);
     float3 d_3 = RotateByQuaternion(float3(0, 1, 0), quaternion);
     d_3 = normalize(d_3);
-    float3 direction = ((1 / _SegmentLength) * (pos2 - pos1)) - d_3;
+    float3 direction = ((1 / _SegmentLength) * (pos2 - pos1)) - d_3;//change direction
     
     float3 deltaP_1 = (_InvertedMasses[point1Index] * _SegmentLength / invertedSum) * direction;
     float3 deltaP_2 = (_InvertedMasses[point1Index + _Strands] * _SegmentLength / invertedSum) * direction;
     
-    //float3 rotatedInvertedE = normalize(RotateByQuaternion(float3(0, -1, 0), quaternion));
     float4 invertedE = float4(0, -1, 0, 0);
     float4 quaternionDirection = HamiltonProduct(HamiltonProduct(float4(direction, 0), _PredictedQuaternions[point1Index]), invertedE);
     float4 deltaQ = float4(((_InvertedInterias[point1Index] * _SegmentLength * _SegmentLength / invertedSum) * quaternionDirection));
@@ -212,10 +194,10 @@ void CalcBendConstraint_v2(float4 q1, float4 q2, uint segmentIndex)
     float4 conjugateQ = float4(-q1.x, -q1.y, -q1.z, q1.w);
     
     float4 qu = HamiltonProduct(conjugateQ, q2);
-    float4 quIm = float4(qu.x, qu.y, qu.z, 0);
+    float4 quIm = float4(qu.x, qu.y, qu.z, 0) * 0.5;
     
-    float4 q1Change = _InvertedInterias[segmentIndex] / invertedSum * HamiltonProduct(q2, quIm);
-    float4 q2Change = _InvertedInterias[segmentIndex+_Strands] / invertedSum * HamiltonProduct(q1, quIm);
+    float4 q1Change = _InvertedInterias[segmentIndex] / invertedSum * HamiltonProduct(q1, quIm);
+    float4 q2Change = _InvertedInterias[segmentIndex+_Strands] / invertedSum * HamiltonProduct(q2, quIm);
     
     _PredictedQuaternions[segmentIndex] = normalize(_PredictedQuaternions[segmentIndex] + q1Change * _BendStiffness);
     _PredictedQuaternions[segmentIndex + _Strands] = normalize(_PredictedQuaternions[segmentIndex + _Strands] - q2Change * _BendStiffness);
@@ -265,12 +247,23 @@ void CalcRingPositions_v2(uint strandIndex)
             CalcDistantConstraint_v2(_PointData[2 * (baseIndex)], _PointData[2 * (baseIndex + _Strands)], _PredictedQuaternions[baseIndex], baseIndex);
         }
     
-        ////bending constraint
+        //bending constraint
         for (int segment = 0; segment < _Segments - 1; segment++)
         {
             baseIndex = strandIndex + (_Strands * segment);
             CalcBendConstraint_v2(_PredictedQuaternions[baseIndex], _PredictedQuaternions[baseIndex + _Strands], baseIndex);
         }
+    }
+    
+        
+    //new quaternion rotation and angular speed update
+    for (int segment = 0; segment < _Segments; segment++)
+    {
+        baseIndex = strandIndex + (_Strands * segment);
+        float4 invertedQ = float4(-_SegmentsQuaternions[baseIndex].x, -_SegmentsQuaternions[baseIndex].y, -_SegmentsQuaternions[baseIndex].z, _SegmentsQuaternions[baseIndex].w);
+        float4 change = 2 * HamiltonProduct(invertedQ, _PredictedQuaternions[baseIndex]);
+        _AngularVelocities[baseIndex] = float3(change.x, change.y, change.z);
+        _SegmentsQuaternions[baseIndex] = _PredictedQuaternions[baseIndex];
     }
     
     for (int ring = 0; ring < _Segments + 1; ring++)
@@ -280,16 +273,6 @@ void CalcRingPositions_v2(uint strandIndex)
         _PointData[2 * baseIndex + 1] = change; //velocity update
         _PointsPositions[baseIndex] = _PointData[2 * (baseIndex)];
         RecalcQuaternion(baseIndex); //I use this to calculate orientation of ring, to render it right
-    }
-    
-    //new quaternion rotation and angular speed update
-    for (int segment = 1; segment < _Segments; segment++)
-    {
-        baseIndex = strandIndex + (_Strands * segment);
-        float4 invertedQ = float4(-_SegmentsQuaternions[baseIndex].x, -_SegmentsQuaternions[baseIndex].y, -_SegmentsQuaternions[baseIndex].z, _SegmentsQuaternions[baseIndex].w);
-        float4 change = 2 * HamiltonProduct(invertedQ, _PredictedQuaternions[baseIndex]);
-        _AngularVelocities[baseIndex] = float3(change.x, change.y, change.z);
-        _SegmentsQuaternions[baseIndex] = _PredictedQuaternions[baseIndex];
     }
 }
 
