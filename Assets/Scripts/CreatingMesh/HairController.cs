@@ -305,8 +305,6 @@ public class HairController : MonoBehaviour
 
     private void CalcPositions()
     {
-        ShowResults<float4>(segmentsQuaternions);
-        //ShowResults<float4>(ringQuaternion);
         strandPositionShader.SetVector("_CapTranslation", new float4(transform.position - lastPosition, 0));
         strandPositionShader.SetVector("_CapPosition", new float4(transform.position, 0));
 
@@ -318,10 +316,7 @@ public class HairController : MonoBehaviour
 
         strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
 
-        Debug.Log(capRotationDelta);
         lastPosition = transform.position;
         lastRotation = transform.rotation;
-        ShowResults<float4>(segmentsQuaternions);
-        ShowResults<float4>(ringQuaternion);
     }
 }

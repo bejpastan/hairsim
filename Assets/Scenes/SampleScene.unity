@@ -150,16 +150,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
   strandPositionShader: {fileID: 7200000, guid: 99b32450f20e6ea47acf252919ac62a6, type: 3}
-  segments: 2
-  maxSegments: 2
-  strandRadius: 0.1
-  strandCount: 4
+  segments: 10
+  maxSegments: 10
+  strandRadius: 0.01
+  strandCount: 10000
   velocityDumping: 0.98
-  stiffness: 1
+  stiffness: 0.21
   strandLength: 0.25
-  bendStiffness: 0.25
+  bendStiffness: 1
   maxAngle: 10
-  lines: 2
+  lines: 100
   capHeight: 4
   capRadius: 4
   hairMat: {fileID: 2100000, guid: 44a1e817e430c8e4c9f2f545f16ef6ee, type: 2}
