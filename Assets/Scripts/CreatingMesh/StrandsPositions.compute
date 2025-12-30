@@ -9,7 +9,7 @@
 RWStructuredBuffer<float3> _PointsPositions;
 RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0
 
-RWStructuredBuffer<float4> _RingQuaternions; 
+//RWStructuredBuffer<float4> _RingQuaternions; 
 
 RWStructuredBuffer<float4> _SegmentsQuaternions;//new
 RWStructuredBuffer<float4> _PredictedQuaternions; //new
@@ -184,7 +184,7 @@ void CalcStartPositionLines(uint strandIndex)
     float atLineIndex = strandIndex - lineIndex * _StrandsPerLine;
     atLineIndex = (float) atLineIndex - ((_StrandsPerLine - 1) / 2.0f);
     
-    float xPos = (lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines)); //this works(not exactly)
+    float xPos = (lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines));
     float zChord = sqrt(-pow(xPos, 2.0) + pow(_CapRadius, 2.0f)); //in given xPosition
     float zPos = 2 * zChord * atLineIndex / _StrandsPerLine;
     
@@ -196,19 +196,18 @@ void CalcStartPositionLines(uint strandIndex)
     float sin = sqrt(1 - cos) / 2;
     cos = sqrt((1 + cos) / 2.0f);
     float3 axis = normalize(cross(float3(0, 1, 0), normalize(float3(xPos, yPos, zPos))));
-    _RingQuaternions[strandIndex] = normalize(float4(sin * axis, cos));
-    _SegmentsQuaternions[strandIndex] = _RingQuaternions[strandIndex];
+    _SegmentsQuaternions[strandIndex] = normalize(float4(sin * axis, cos));
     _InvertedMasses[strandIndex] = 0;
-    _InvertedInterias[strandIndex] = 0;//I'm not sure about this
+    _InvertedInterias[strandIndex] = 0;
     
     //calc position of other points in this strand
     for (uint ring = 1; ring < _Segments + 1; ring++)
     {
         uint index = strandIndex + _Strands * ring;
         
-        float3 direction = RotateByQuaternion(float3(0, 1, 0), _RingQuaternions[index - _Strands]);
+        float3 direction = RotateByQuaternion(float3(0, 1, 0), _SegmentsQuaternions[index - _Strands]);
         _PointsPositions[index] = _PointsPositions[(index - _Strands)] + direction * _SegmentLength;
-        _RingQuaternions[index] = _RingQuaternions[index - _Strands];
+        _SegmentsQuaternions[index] = _SegmentsQuaternions[index - _Strands];
         _PointData[2*index+1] = float3(0, 0, 0);
         _InvertedMasses[index] = 1;
     }
@@ -216,7 +215,6 @@ void CalcStartPositionLines(uint strandIndex)
     for (uint segment = 1; segment < _Segments; segment++)
     {
         uint index = strandIndex + _Strands * segment;
-        _SegmentsQuaternions[index] = _RingQuaternions[index];
         _InvertedInterias[index] = 1;
         _AngularVelocities[index] = float3(0, 0, 0);
     }
@@ -249,9 +247,8 @@ void AddPoint(uint3 id : SV_DispatchThreadID)
     if (id.x < _Strands)
     {
         uint index = id.x + (_Segments * _Strands);        
-        float3 direction = RotateByQuaternion(float3(0, 1, 0), _RingQuaternions[index - _Strands]);
+        float3 direction = RotateByQuaternion(float3(0, 1, 0), _SegmentsQuaternions[index - _Strands]);
         _PointsPositions[index] = _PointsPositions[(index - _Strands)] + direction * _SegmentLength;
-        _RingQuaternions[index] = _RingQuaternions[index - _Strands];
         _PointData[2*index + 1] = _PointData[2*(index - _Strands) + 1];
         _InvertedMasses[index] = 1;
         
