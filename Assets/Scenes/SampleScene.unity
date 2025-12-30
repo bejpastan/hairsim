@@ -150,16 +150,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
   strandPositionShader: {fileID: 7200000, guid: 99b32450f20e6ea47acf252919ac62a6, type: 3}
-  segments: 20
-  maxSegments: 25
-  strandRadius: 0.02
-  strandCount: 10000
-  velocityDumping: 0.95
+  segments: 2
+  maxSegments: 4
+  strandRadius: 0.1
+  strandCount: 4
+  velocityDumping: 0.98
   stiffness: 1
-  strandLength: 0.2
-  bendStiffness: 1
+  strandLength: 0.25
+  bendStiffness: 0.51
   maxAngle: 10
-  lines: 100
+  lines: 2
   capHeight: 4
   capRadius: 4
   hairMat: {fileID: 2100000, guid: 44a1e817e430c8e4c9f2f545f16ef6ee, type: 2}
@@ -265,7 +265,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2, y: 1, z: -10}
+  m_LocalPosition: {x: 0, y: 1, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
