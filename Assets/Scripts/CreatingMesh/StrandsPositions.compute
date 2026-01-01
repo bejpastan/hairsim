@@ -31,6 +31,8 @@ float4 _CapRotationDelta;
 //linesSettings
 int _Lines;
 int _StrandsPerLine;
+float _XPosRand;
+float _YPosRand;
 
 //constraint settings
 float _TimeStep;

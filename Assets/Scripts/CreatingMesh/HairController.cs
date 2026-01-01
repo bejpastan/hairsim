@@ -38,11 +38,14 @@ public class HairController : MonoBehaviour
     [SerializeField]
     int lines = 4;
     readonly int strandsInLine;
-
     [SerializeField]
     float capHeight = 2.0f;
     [SerializeField]
     float capRadius = 1.0f;
+    [SerializeField]
+    float yRandRange = 1.0f;
+    [SerializeField]
+    float xRandRange = 1.0f;
 
     int verticesKernelId;
     int indicesKernelId;
@@ -92,9 +95,21 @@ public class HairController : MonoBehaviour
     private void Update()
     {
         renderParams.matProps = matProps;
-        Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
-        if (Input.GetKeyDown(KeyCode.Space))//this is my external logic, ignore this if
+        if (segments != 0)
         {
+            Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
+        }
+        if (Input.GetKeyDown(KeyCode.DownArrow))//this is my external logic, ignore this if
+        {
+            segments = Mathf.Max(0, segments - 1);
+            if(segments != 0)
+            {
+                RebuildMesh();
+            }
+        }
+        if(Input.GetKeyDown(KeyCode.UpArrow))
+        {
+            segments = Mathf.Min(maxSegments, segments + 1);
             RebuildMesh();
         }
     }
