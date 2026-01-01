@@ -59,6 +59,7 @@ public class HairController : MonoBehaviour
     GraphicsBuffer.IndirectDrawArgs[] cmdArgsBuffer;
     const int COMMAND_COUNT = 1;
     RenderParams renderParams;
+    MaterialPropertyBlock matProps;
 
     #region Points buffers
     ComputeBuffer pointsPositionData;
@@ -90,8 +91,9 @@ public class HairController : MonoBehaviour
 
     private void Update()
     {
+        renderParams.matProps = matProps;
         Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (Input.GetKeyDown(KeyCode.Space))//this is my external logic, ignore this if
         {
             RebuildMesh();
         }
@@ -100,8 +102,8 @@ public class HairController : MonoBehaviour
     void FixedUpdate()
     {
         CalcPositions();
-        renderParams.matProps.SetBuffer("_PointsPositions", positions);
-        renderParams.matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
+        matProps.SetBuffer("_PointsPositions", positions);
+        matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
     }
 
     /// <summary>
@@ -185,7 +187,6 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetFloat("_Stiffness", stiffness);
         strandPositionShader.SetFloat("_BendStiffness", bendStiffness);
     }
-
     private void MeshShaderSetup()
     {
         #region mesh shader setup
@@ -195,20 +196,22 @@ public class HairController : MonoBehaviour
         cmdBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, COMMAND_COUNT, GraphicsBuffer.IndirectDrawArgs.size);
         cmdArgsBuffer = new GraphicsBuffer.IndirectDrawArgs[COMMAND_COUNT];
 
+        matProps = new MaterialPropertyBlock();
+
         renderParams = new(hairMat)
         {
             worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f),
-            matProps = new MaterialPropertyBlock()
         };
         #endregion
     }
-
     private void HairShaderSetup()
     {
         #region setting buffers to material
-        renderParams.matProps.SetBuffer("_PointsPositions", positions);
-        renderParams.matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
-        renderParams.matProps.SetInt("_Strands", strandCount);
+        matProps = new MaterialPropertyBlock();
+
+        matProps.SetBuffer("_PointsPositions", positions);
+        matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
+        matProps.SetInt("_Strands", strandCount);
         #endregion
     }
 
@@ -218,8 +221,8 @@ public class HairController : MonoBehaviour
         int indexCount = segments * 6 * 4;
         vertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, vertexCount, sizeof(float) * 3);
         indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, indexCount, sizeof(int));
-        renderParams.matProps.SetBuffer("_Vertices", vertexBuffer);
-        renderParams.matProps.SetBuffer("_Indices", indexBuffer);
+        matProps.SetBuffer("_Vertices", vertexBuffer);
+        matProps.SetBuffer("_Indices", indexBuffer);
 
         //positions shader setup
         strandPositionShader.SetInts("_Segments", segments);
@@ -252,7 +255,6 @@ public class HairController : MonoBehaviour
         }
 
         cmdBuffer.SetData(cmdArgsBuffer);
-        ShowResults<float>(invertedIntertias);
         previousSegments = segments;
     }
 
