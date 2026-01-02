@@ -49,6 +49,7 @@ public class HairController : MonoBehaviour
 
     int verticesKernelId;
     int indicesKernelId;
+    int closingIndicesKernelId;
 
     GraphicsBuffer vertexBuffer;
     GraphicsBuffer indexBuffer;
@@ -209,6 +210,7 @@ public class HairController : MonoBehaviour
         #region mesh shader setup
         verticesKernelId = strandMeshBuilder.FindKernel("BuildVertices");
         indicesKernelId = strandMeshBuilder.FindKernel("BuildIndices");
+        closingIndicesKernelId = strandMeshBuilder.FindKernel("SetClosingIndices");
 
         cmdBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, COMMAND_COUNT, GraphicsBuffer.IndirectDrawArgs.size);
         cmdArgsBuffer = new GraphicsBuffer.IndirectDrawArgs[COMMAND_COUNT];
@@ -235,7 +237,7 @@ public class HairController : MonoBehaviour
     private void RebuildMesh()
     {
         int vertexCount = (segments + 1) * 4;
-        int indexCount = segments * 6 * 4;
+        int indexCount = (segments * 6 * 4) + 6;
         vertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, vertexCount, sizeof(float) * 3);
         indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, indexCount, sizeof(int));
         matProps.SetBuffer("_Vertices", vertexBuffer);
@@ -248,19 +250,21 @@ public class HairController : MonoBehaviour
         rebuild = true;
         strandMeshBuilder.SetInt("_Segments", segments);
         strandMeshBuilder.SetFloat("_BaseSize", strandRadius);
-        strandMeshBuilder.SetInt("_verticesCount", (segments + 1) * 4);
-        strandMeshBuilder.SetInt("_indicesCount", segments * 6 * 4);
+        strandMeshBuilder.SetInt("_verticesCount", vertexCount);
+        strandMeshBuilder.SetInt("_indicesCount", indexCount);
 
         strandMeshBuilder.SetBuffer(verticesKernelId, "_Vertices", vertexBuffer);
         strandMeshBuilder.SetBuffer(indicesKernelId, "_Indices", indexBuffer);
+        strandMeshBuilder.SetBuffer(closingIndicesKernelId, "_Indices", indexBuffer);
 
-        float vertGroup= ((segments + 1)*4)/32.0f;
-        float indGroup = (segments * 6.0f*4.0f)/32.0f;
+        float vertGroup = ((segments + 1)*4)/64.0f;
+        float indGroup = ((segments+1)*4)/64.0f;
 
         strandMeshBuilder.Dispatch(verticesKernelId, (int)Mathf.Ceil(vertGroup), 1, 1);
         strandMeshBuilder.Dispatch(indicesKernelId, (int)Mathf.Ceil(indGroup), 1, 1);
+        strandMeshBuilder.Dispatch(closingIndicesKernelId, 1, 1, 1);
 
-        cmdArgsBuffer[0].vertexCountPerInstance = (uint)segments * 6 * 4;//well, in reality this is index count
+        cmdArgsBuffer[0].vertexCountPerInstance = (uint)segments * 6 * 4 + 6;//well, in reality this is index count
         cmdArgsBuffer[0].instanceCount = (uint)strandCount;
 
         strandPositionShader.SetInt("_Segments", segments);
@@ -273,6 +277,7 @@ public class HairController : MonoBehaviour
 
         cmdBuffer.SetData(cmdArgsBuffer);
         previousSegments = segments;
+        ReadGraphicBuffer<uint>(indexBuffer);
     }
 
     private void ShowResults<T>(ComputeBuffer buffer)
