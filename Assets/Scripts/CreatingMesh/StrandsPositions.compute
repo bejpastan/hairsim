@@ -32,7 +32,7 @@ float4 _CapRotationDelta;
 int _Lines;
 int _StrandsPerLine;
 float _XPosRand;
-float _YPosRand;
+float _ZPosRand;
 
 //constraint settings
 float _TimeStep;
@@ -48,6 +48,13 @@ float _BendHalfSin;
 //PBD settings
 float _VelocityDumping = 0.98f;
 int _IterationCount = 1;
+
+float RandFloat(uint seed, float state, float range)
+{
+    seed *= state;
+    uint word = ((seed >> ((seed >> 28u) + 4u)) ^ seed) * 277803737u;
+    return range * float((word >> 22u) ^ word) / 4294967295.0;
+}
 
 float3 RotateByQuaternion(float3 v, float4 q)
 {
@@ -186,9 +193,13 @@ void CalcStartPositionLines(uint strandIndex)
     float atLineIndex = strandIndex - lineIndex * _StrandsPerLine;
     atLineIndex = (float) atLineIndex - ((_StrandsPerLine - 1) / 2.0f);
     
-    float xPos = (lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines));
+    float xPos = ((lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines))) + RandFloat(strandIndex, 1, _XPosRand);
+    //clamping xPos to be inside cap
+    xPos = clamp(xPos, -_CapRadius + 0.001f, _CapRadius - 0.001f);
     float zChord = sqrt(-pow(xPos, 2.0) + pow(_CapRadius, 2.0f)); //in given xPosition
-    float zPos = 2 * zChord * atLineIndex / _StrandsPerLine;
+    float zPos = (2 * zChord * atLineIndex / _StrandsPerLine) + RandFloat(strandIndex, 1, _ZPosRand);
+    //calmping zPos to be inside cap
+    zPos = clamp(zPos, -_CapRadius + 0.001f, _CapRadius - 0.001f);
     
     float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
     

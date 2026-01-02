@@ -43,7 +43,7 @@ public class HairController : MonoBehaviour
     [SerializeField]
     float capRadius = 1.0f;
     [SerializeField]
-    float yRandRange = 1.0f;
+    float zRandRange = 1.0f;
     [SerializeField]
     float xRandRange = 1.0f;
 
@@ -166,6 +166,8 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_AngularVelocities", angularV);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_PredictedQuaternions", predictedQuaternions);
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_InvertedInterias", invertedIntertias);
+        strandPositionShader.SetFloat("_ZPosRand", zRandRange);
+        strandPositionShader.SetFloat("_XPosRand", xRandRange);
         SetVariables();
     }
     private void SetSimulationsBuffer()
