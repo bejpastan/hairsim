@@ -457,14 +457,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
   strandPositionShader: {fileID: 7200000, guid: 99b32450f20e6ea47acf252919ac62a6, type: 3}
-  segments: 15
+  segments: 5
   maxSegments: 20
   strandRadius: 0.1
   strandCount: 100
   velocityDumping: 0.98
   stiffness: 1
   strandLength: 0.25
-  bendStiffness: 0.58
+  bendStiffness: 1
   lines: 10
   capHeight: 4
   capRadius: 4

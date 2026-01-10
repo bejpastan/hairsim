@@ -32,6 +32,7 @@ public class SDF : MonoBehaviour
         sdfPositions = new();
 
         CalculateSDF(0);
+        Drawing.DrawSphereoid(sdfPositions[0], sdfParameters[0], Color.blue, quaternion.identity, 100f);
 
         //for (int i = 0; i < bones.Count; i++)
         //{
@@ -109,12 +110,6 @@ public class SDF : MonoBehaviour
             A[2, Array.IndexOf(boneVertices[boneId].ToArray(), vertex)] = centered.z;
         }
         sdfPositions.Add(mean);
-        Debug.DrawLine(mean, mean + UnityEngine.Vector3.up * 0.5f, Color.red, 100f);
-        Debug.DrawLine(mean, mean + UnityEngine.Vector3.up * -0.5f, Color.red, 100f);
-        Debug.DrawLine(mean, mean + UnityEngine.Vector3.left * 0.5f, Color.red, 100f);
-        Debug.DrawLine(mean, mean + UnityEngine.Vector3.left * -0.5f, Color.red, 100f);
-        Debug.DrawLine(mean, mean + UnityEngine.Vector3.forward * 0.5f, Color.red, 100f);
-        Debug.DrawLine(mean, mean + UnityEngine.Vector3.forward * -0.5f, Color.red, 100f);
 
         Debug.Log($"mean {mean}");
 
