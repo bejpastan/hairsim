@@ -18,7 +18,6 @@ public class SDF : MonoBehaviour
     Dictionary<int, List<Vector3>> boneVertices;
 
     List<Vector4> sdfRotations;//rotation in localspace as quaternion
-    List<Vector3> sdfPositions;//position in world space
     List<Vector3> sdfOffset;//position in local space
     List<Vector3> sdfParameters;//this are XYZ sizes of elipsoid
 
@@ -34,7 +33,7 @@ public class SDF : MonoBehaviour
         GetBonesVertices();
         sdfRotations = new();
         sdfParameters = new();
-        sdfPositions = new();
+        sdfOffset = new();
 
         for (int i = 0; i < bones.Count; i++)
         {
@@ -149,7 +148,6 @@ public class SDF : MonoBehaviour
             //Debug.DrawLine(mean, worldVertex, Color.green, 5f);
             //Debug.LogWarning($"vertex {worldVertex}, centered {centered}");
         }
-        sdfPositions.Add(mean);
 
         Vector4[] values = CalcV(A);
         Vector3[] sVec = new Vector3[values.Length];//singula vectors
@@ -201,6 +199,12 @@ public class SDF : MonoBehaviour
         Quaternion elementRotation = Quaternion.LookRotation(sVec[2], sVec[1]);
         Drawing.DrawSphereoid(mean, new Vector3(sVal[0], sVal[1], sVal[2]) * 2, Color.red, elementRotation, 5f);
         Debug.Log($"Calculating SDF for bone {bones[boneId].boneName} with {boneVertices[boneId].Count} vertices.");
+
+        //set offset, rotation and parameters
+        sdfOffset[boneId] = mean - boneTransforms[boneId].position;
+        Quaternion relativeRotation = Quaternion.Inverse(boneTransforms[boneId].rotation) * elementRotation;
+        sdfRotations[boneId] = new Vector4(relativeRotation.x, relativeRotation.y, relativeRotation.z, relativeRotation.w);
+        sdfParameters[boneId] = new Vector3(sVal[0], sVal[1], sVal[2]);
     }
 
     public float[] Sizes(float[,] A, Vector3[] basis)
