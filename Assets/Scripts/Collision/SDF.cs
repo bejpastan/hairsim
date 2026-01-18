@@ -1,10 +1,10 @@
-using UnityEngine;
+using MathNet.Numerics.LinearAlgebra;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
-using System;
 using System.Numerics;
-using MathNet.Numerics.LinearAlgebra;
+using Unity.Mathematics;
+using UnityEngine;
 
 
 public class SDF : MonoBehaviour
@@ -22,6 +22,10 @@ public class SDF : MonoBehaviour
     List<UnityEngine.Vector3> sdfPositions;//position in world space
     List<UnityEngine.Vector3> sdfParameters;//this are XYZ sizes of elipsoid
 
+    [SerializeField]
+    [Range(0f, 0.5f)]
+    float weightThreshold = 0.2f;
+
     private void Start()
     {
         GetBones();
@@ -31,14 +35,34 @@ public class SDF : MonoBehaviour
         sdfParameters = new();
         sdfPositions = new();
 
-        CalculateSDF(0);
-        Drawing.DrawSphereoid(sdfPositions[0], sdfParameters[0], Color.blue, quaternion.identity, 100f);
-
         //for (int i = 0; i < bones.Count; i++)
         //{
         //    CalculateSDF(i);
         //}
 
+    }
+
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            CalcNext();
+        }
+    }
+
+    int lastCalc = 0;
+    private async void CalcNext()
+    {
+        if(lastCalc<bones.Count)
+        {
+            CalculateSDF(lastCalc);
+            lastCalc++;
+        }
+        else
+        {
+            lastCalc = 0;
+        }
     }
 
     private void GetBones()
@@ -50,51 +74,56 @@ public class SDF : MonoBehaviour
     {
         BoneWeight[] boneWeights = characterMesh.boneWeights;
         boneVertices = new();
-        foreach (BoneWeight boneWeight in boneWeights)
+
+        for(int i=0; i<boneWeights.Length; i++)
         {
-            if (boneWeight.weight0 >= 0.5)
+            if (boneWeights[i].weight0 >= weightThreshold)
             {
-                if (!boneVertices.ContainsKey(boneWeight.boneIndex0))
+                if (!boneVertices.ContainsKey(boneWeights[i].boneIndex0))
                 {
-                    boneVertices[boneWeight.boneIndex0] = new List<UnityEngine.Vector3>();
+                    boneVertices[boneWeights[i].boneIndex0] = new List<UnityEngine.Vector3>();
                 }
-                boneVertices[boneWeight.boneIndex0].Add(characterMesh.vertices[System.Array.IndexOf(boneWeights, boneWeight)]);
-                continue;
+                boneVertices[boneWeights[i].boneIndex0].Add(characterMesh.vertices[i]);
             }
-            if (boneWeight.weight1 >= 0.5)
+            if (boneWeights[i].weight1 >= weightThreshold)
             {
-                if (!boneVertices.ContainsKey(boneWeight.boneIndex1))
+                if (!boneVertices.ContainsKey(boneWeights[i].boneIndex1))
                 {
-                    boneVertices[boneWeight.boneIndex1] = new List<UnityEngine.Vector3>();
+                    boneVertices[boneWeights[i].boneIndex1] = new List<UnityEngine.Vector3>();
                 }
-                boneVertices[boneWeight.boneIndex1].Add(characterMesh.vertices[System.Array.IndexOf(boneWeights, boneWeight)]);
-                continue;
+                boneVertices[boneWeights[i].boneIndex1].Add(characterMesh.vertices[i]);
             }
-            if (boneWeight.weight2 >= 0.5)
+            if (boneWeights[i].weight2 >= weightThreshold)
             {
-                if (!boneVertices.ContainsKey(boneWeight.boneIndex2))
+                if (!boneVertices.ContainsKey(boneWeights[i].boneIndex2))
                 {
-                    boneVertices[boneWeight.boneIndex2] = new List<UnityEngine.Vector3>();
+                    boneVertices[boneWeights[i].boneIndex2] = new List<UnityEngine.Vector3>();
                 }
-                boneVertices[boneWeight.boneIndex2].Add(characterMesh.vertices[System.Array.IndexOf(boneWeights, boneWeight)]);
-                continue;
+                boneVertices[boneWeights[i].boneIndex2].Add(characterMesh.vertices[i]);
             }
-            if (boneWeight.weight3 >= 0.5)
+            if (boneWeights[i].weight3 >= weightThreshold)
             {
-                if (!boneVertices.ContainsKey(boneWeight.boneIndex3))
+                if (!boneVertices.ContainsKey(boneWeights[i].boneIndex3))
                 {
-                    boneVertices[boneWeight.boneIndex3] = new List<UnityEngine.Vector3>();
+                    boneVertices[boneWeights[i].boneIndex3] = new List<UnityEngine.Vector3>();
                 }
-                boneVertices[boneWeight.boneIndex3].Add(characterMesh.vertices[System.Array.IndexOf(boneWeights, boneWeight)]);
-                continue;
+                boneVertices[boneWeights[i].boneIndex3].Add(characterMesh.vertices[i]);
             }
+        }
+
+        //removing duplicates
+        foreach (var key in boneVertices.Keys.ToList())
+        {
+            boneVertices[key] = boneVertices[key].Distinct().ToList();
         }
     }
 
     private void CalculateSDF(int boneId)
     {
         UnityEngine.Vector3 mean = UnityEngine.Vector3.zero;
-        float[,] A = new float[3, boneVertices[boneId].Count];//change X nad Y
+        float[,] A = new float[boneVertices[boneId].Count, 3];//change X nad Y
+
+        Debug.Log($"vertices count {boneVertices[boneId].Count}");
 
         foreach (UnityEngine.Vector3 vertex in boneVertices[boneId])
         {
@@ -105,58 +134,121 @@ public class SDF : MonoBehaviour
         {
             UnityEngine.Vector3 worldVertex = skinnedMeshRenderer.transform.TransformPoint(vertex);
             UnityEngine.Vector3 centered = worldVertex - mean;
-            A[0, Array.IndexOf(boneVertices[boneId].ToArray(), vertex)] = centered.x;
-            A[1, Array.IndexOf(boneVertices[boneId].ToArray(), vertex)] = centered.y;
-            A[2, Array.IndexOf(boneVertices[boneId].ToArray(), vertex)] = centered.z;
+            A[Array.IndexOf(boneVertices[boneId].ToArray(), vertex), 0] = centered.x;
+            A[Array.IndexOf(boneVertices[boneId].ToArray(), vertex), 1] = centered.y;
+            A[Array.IndexOf(boneVertices[boneId].ToArray(), vertex), 2] = centered.z;
+            Debug.DrawLine(mean, worldVertex, Color.green, 2f);
+            Debug.LogWarning($"vertex {worldVertex}, centered {centered}");
         }
+        
+
+        
         sdfPositions.Add(mean);
 
-        Debug.Log($"mean {mean}");
+        UnityEngine.Vector4[] values = CalcV(A);
+        UnityEngine.Vector3[] sVec = new UnityEngine.Vector3[values.Length];//singula vectors
+        float[] sVal = new float[values.Length];//singula values
 
-        UnityEngine.Vector3[] eigenvectors = CalcV(A);
+        //sorting values and vectors
+        for(int i =0; i<values.Length-1; i++)
+        {
+            for(int j = i+1; j<values.Length; j++)
+            {
+                if(values[i].w<values[j].w)
+                {
+                    var tmpV = values[i];
+                    values[i] = values[j];
+                    values[j] = tmpV;
+                }
+            }
+        }
+
+        for (int i = 0; i < values.Length; i++)
+        {
+            sVec[i] = new UnityEngine.Vector3(values[i].x, values[i].y, values[i].z).normalized;
+            sVal[i] = values[i].w;
+            //Debug.DrawLine(mean, mean + sVec[i] * sVal[i], Color.red, 100f);
+        }
+
+        //calculating rotation, and size
+        UnityEngine.Quaternion elementRotation = MatrixToQuaternion(sVec);
+
+        //Drawing.DrawSphereoid(mean, new UnityEngine.Vector3(sVal[0], sVal[1], sVal[2]), Color.red, elementRotation, 100f);
+        Debug.Log($"Calculating SDF for bone {bones[boneId].boneName} with {boneVertices[boneId].Count} vertices.");
     }
 
-    private UnityEngine.Vector3[] CalcV(float[,] A)
+    public UnityEngine.Vector4[] CalcV(float[,] A)
     {
-        float[,] AAtranspose = MatrixTransposeMultiplication(A);
+        UnityEngine.Vector4[] eigenVectors = new UnityEngine.Vector4[3];
+
+        //float[,] ATA = MatrixTransposeMultiplication(A);
+        float[,] ATA = MatrixATA(A);
+
+        var matrix = Matrix<float>.Build.DenseOfArray(ATA);
+        var evd = matrix.Evd();
+
+        Matrix<float> vectors = evd.EigenVectors;
 
         //I need to divide every row in V by length of UnityEngine.Vector to get covariance matrix
         float a = 1;
-        float b = AAtranspose[0, 0] + AAtranspose[1, 1] + AAtranspose[2, 2];
-        float c = AAtranspose[0, 0] * AAtranspose[1, 1] + AAtranspose[0, 0] * AAtranspose[2, 2] + AAtranspose[1, 1] * AAtranspose[2, 2] - AAtranspose[0, 1] * AAtranspose[1, 0] - AAtranspose[0, 2] * AAtranspose[2, 0] - AAtranspose[1, 2] * AAtranspose[2, 1];
-        float d = AAtranspose[0, 0] * AAtranspose[1, 1] * AAtranspose[2, 2] + AAtranspose[0, 1] * AAtranspose[1, 2] * AAtranspose[2, 0] + AAtranspose[0, 2] * AAtranspose[1, 0] * AAtranspose[2, 1] - AAtranspose[0, 0] * AAtranspose[1, 2] * AAtranspose[2, 1] - AAtranspose[0, 1] * AAtranspose[1, 0] * AAtranspose[2, 2] - AAtranspose[0, 2] * AAtranspose[1, 1] * AAtranspose[2, 0];
+        float b = ATA[0, 0] + ATA[1, 1] + ATA[2, 2];
+        float c = ATA[0, 0] * ATA[1, 1] + ATA[0, 0] * ATA[2, 2] + ATA[1, 1] * ATA[2, 2] - ATA[0, 1] * ATA[1, 0] - ATA[0, 2] * ATA[2, 0] - ATA[1, 2] * ATA[2, 1];
+        float d = ATA[0, 0] * ATA[1, 1] * ATA[2, 2] + ATA[0, 1] * ATA[1, 2] * ATA[2, 0] + ATA[0, 2] * ATA[1, 0] * ATA[2, 1] - ATA[0, 0] * ATA[1, 2] * ATA[2, 1] - ATA[0, 1] * ATA[1, 0] * ATA[2, 2] - ATA[0, 2] * ATA[1, 1] * ATA[2, 0];
 
-        float[] eigenValues = SolveDuranKorner(new float[] { -a, b, -c, d });
+        float[] eigenValues = TrignometricCardano(new float[] {a, -b, c, -d });
 
-        Debug.Log("Eigenvalues: " + eigenValues[0] + ", " + eigenValues[1] + ", " + eigenValues[2]);
+        //to this moment works fine, I have eigenvalues
 
-        //now I need to calcualte eigenvectors
-        UnityEngine.Vector3[] eigenVectors = new UnityEngine.Vector3[3];
-        for(int i = 0; i<3; i++)
-        {
-            float[][] V = new float[3][];
-            for(int j = 0; j<3; j++)
-            {
-                V[j] = new float[4];
-                for(int k = 0; k<3; k++)
-                {
-                    if (j == k)
-                    {
-                        V[j][k] = AAtranspose[j, k] - eigenValues[i];
-                    }
-                    else
-                    {
-                        V[j][k] = AAtranspose[j, k];
-                    }
-                }
-                V[j][3] = 0;
-            }
+        ////now I need to calcualte eigenvectors
+        //for (int i = 0; i < 3; i++)
+        //{
+        //    float[][] V = new float[3][];
+        //    for (int j = 0; j < 3; j++)
+        //    {
+        //        V[j] = new float[3];
+        //        for (int k = 0; k < 3; k++)
+        //        {
+        //            if (j == k)
+        //            {
+        //                V[j][k] = ATA[j, k] - eigenValues[i];
+        //            }
+        //            else
+        //            {
+        //                V[j][k] = ATA[j, k];
+        //            }
+        //        }
+        //        //V[j][3] = 0;
+        //    }
 
-            Debug.Log($"Matrix for eigenvector {i}: ");
-            Debug.Log($"{V[0][0]}, {V[0][1]}, {V[0][2]}, {V[0][3]}");
-            Debug.Log($"{V[1][0]}, {V[1][1]}, {V[1][2]}, {V[1][3]}");
-            Debug.Log($"{V[2][0]}, {V[2][1]}, {V[2][2]}, {V[2][3]}");
-        }
+        //    Debug.Log($"Matrix for eigenvector {i}: ");
+        //    Debug.Log($"{V[0][0]}, {V[0][1]}, {V[0][2]}");
+        //    Debug.Log($"{V[1][0]}, {V[1][1]}, {V[1][2]}");
+        //    Debug.Log($"{V[2][0]}, {V[2][1]}, {V[2][2]}");
+
+        //    UnityEngine.Vector3 row1 = new UnityEngine.Vector3(V[0][0], V[0][1], V[0][2]);
+        //    UnityEngine.Vector3 row2 = new UnityEngine.Vector3(V[1][0], V[1][1], V[1][2]);
+        //    UnityEngine.Vector3 row3 = new UnityEngine.Vector3(V[2][0], V[2][1], V[2][2]);
+
+        //    eigenVectors[i] = UnityEngine.Vector3.Cross(row1, row2);
+        //    if (eigenVectors[i].magnitude < UnityEngine.Vector3.Cross(row2, row3).magnitude)
+        //    {
+        //        eigenVectors[i] = UnityEngine.Vector3.Cross(row2, row3);
+        //    }
+        //    if (eigenVectors[i].magnitude < UnityEngine.Vector3.Cross(row1, row3).magnitude)
+        //    {
+        //        eigenVectors[i] = UnityEngine.Vector3.Cross(row1, row3);
+        //    }
+
+
+
+        //    eigenVectors[i] = eigenVectors[i].normalized * eigenValues[i];
+        //}
+        
+        eigenVectors[0] = new UnityEngine.Vector4(vectors.Column(0)[0], vectors.Column(0)[1], vectors.Column(0)[2], (float)evd.EigenValues[0].Real).normalized;
+        eigenVectors[1] = new UnityEngine.Vector4(vectors.Column(1)[0], vectors.Column(1)[1], vectors.Column(1)[2], (float)evd.EigenValues[1].Real).normalized;
+        eigenVectors[2] = new UnityEngine.Vector4(vectors.Column(2)[0], vectors.Column(2)[1], vectors.Column(2)[2], (float)evd.EigenValues[2].Real).normalized;
+
+        //how to make them to have appropriate lenght
 
         return eigenVectors;
     }
@@ -198,7 +290,7 @@ public class SDF : MonoBehaviour
         bool allZero = true;
         for (indexCheck = 0; indexCheck < A.Length; indexCheck++)
         {
-            if (A[indexCheck][A[0].Length-1] != 0)
+            if (Mathf.Abs(A[indexCheck][A[0].Length - 2]) < 0.000001)
             {
                 allZero = false;
                 break;
@@ -207,7 +299,7 @@ public class SDF : MonoBehaviour
 
         if (allZero)
         {
-            A[A.Length-1][A[0].Length-1] = 1;
+            A[A.Length - 1][A[0].Length - 1] = 1;
         }
 
         int aLen = A.Length;
@@ -239,13 +331,33 @@ public class SDF : MonoBehaviour
         float[] result = new float[A.Length];
         for (int i = 0; i < A.Length; i++)
         {
-            result[i] = (A[i][A[0].Length-1] / A[i][i]);
+            result[i] = (A[i][A[0].Length - 1] / A[i][i]);
         }
-
+        Debug.Log($"Eigenvector solution: {result[0]}, {result[1]}, {result[2]}");
         return result;
     }
 
-    private float[] SolveDuranKorner(float[] coefficients)
+    public float[] TrignometricCardano(float[] coeffs)
+    {
+        //a coeffs[0]
+        //b coeffs[1]
+        //c coeffs[2]
+        //d coeffs[3]
+        //(3ac-b^2)/(3a^2)
+        float p = (3 * coeffs[0] * coeffs[2] - Mathf.Pow(coeffs[1], 2)) / (3 * Mathf.Pow(coeffs[0], 2));
+        float q = (2 * Mathf.Pow(coeffs[1], 3) - 9 * coeffs[0] * coeffs[1] * coeffs[2] + 27 * Mathf.Pow(coeffs[0], 2) * coeffs[3]) / (27*Mathf.Pow(coeffs[0], 3));
+        float r = 2*Mathf.Sqrt(-p/3);
+        float cosPhi = (Mathf.Sqrt(-3 / p) * 3 * q) / (2 * p);
+        float theta = Mathf.Acos(cosPhi)/3;
+        float[] results = new float[3];
+        float shift = coeffs[1] / (3 * coeffs[0]);
+        results[0] = r * Mathf.Cos(theta) - shift;
+        results[1] = r * Mathf.Cos(theta + 2 * Mathf.PI / 3) - shift;
+        results[2] = r * Mathf.Cos(theta + 4 * Mathf.PI / 3) - shift;
+        return results;
+    }
+
+    public float[] SolveDuranKorner(float[] coefficients)
     {
         Complex[] roots = new Complex[coefficients.Length - 1];
         int n = coefficients.Length - 1;
@@ -295,20 +407,114 @@ public class SDF : MonoBehaviour
         return result;
     }
 
-    private float[,] MatrixTransposeMultiplication(float[,] A)
+    private UnityEngine.Quaternion MatrixToQuaternion(UnityEngine.Vector3[] inputMatrix)
     {
-        float[,] V = new float[A.GetLength(0), A.GetLength(0)];
-        for (int x = 0; x < A.GetLength(0); x++)//rows in V matrix
+        float[,] matrix = new float[3, 3];
+        for (int i = 0; i < 3; i++)//iteruje po wierszach
         {
-            for (int y = 0; y < A.GetLength(0); y++)//columns in V matrix
+            matrix[i, 0] = inputMatrix[i].x;
+            matrix[i, 1] = inputMatrix[i].y;
+            matrix[i, 2] = inputMatrix[i].z;
+        }
+        return MatrixToQuaternion(matrix);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="rMtx">input rotation matrix</param>
+    /// <returns></returns>
+    private UnityEngine.Quaternion MatrixToQuaternion(float[,] rMtx)
+    {
+        const float eta = 0.25f;
+
+        float trace = rMtx[0, 0] + rMtx[1, 1] + rMtx[2, 2];//this is not always trace
+        UnityEngine.Vector4 q = new UnityEngine.Vector4();
+        if(trace>eta)
+        { 
+            q.w = Mathf.Sqrt(1 + trace) / 2;
+        }
+        else
+        {
+            q.w = Mathf.Sqrt(
+                (Mathf.Pow(rMtx[2, 1] - rMtx[1, 2], 2) + Mathf.Pow(rMtx[0, 2] - rMtx[2, 0], 2) + Mathf.Pow(rMtx[1, 0] - rMtx[0, 1], 2))
+                /
+                (3 - rMtx[0, 0] - rMtx[1, 1] - rMtx[2, 2])
+            );
+            q.w /= 2;
+        }
+        
+        trace = rMtx[0,0]-rMtx[2,2]-rMtx[1,1];
+        if(trace>eta)
+        {
+            q.x = Mathf.Sqrt(1 + trace) / 2;
+        }
+        else
+        {
+            q.x = Mathf.Sqrt(
+                (Mathf.Pow(rMtx[2, 1] - rMtx[1,2], 2) + Mathf.Pow(rMtx[0, 1] + rMtx[1, 0], 2) + Mathf.Pow(rMtx[2,0] - rMtx[0, 2], 2))
+                /
+                (3 - rMtx[0, 0] + rMtx[1, 1] + rMtx[2, 2])
+            );
+            q.x /= 2;
+        }
+        
+        trace = rMtx[1,1]-rMtx[2,2]-rMtx[0,0];
+        if( trace>eta)
+        {
+            q.y = Mathf.Sqrt(1 + trace) / 2;
+        }
+        else
+        {
+            q.y = Mathf.Sqrt(
+                (Mathf.Pow(rMtx[0, 2] - rMtx[2, 0], 2) + Mathf.Pow(rMtx[0, 1] + rMtx[1, 0], 2) + Mathf.Pow(rMtx[1, 2] + rMtx[2, 1], 2))
+                /
+                (3 + rMtx[0, 1] - rMtx[1, 1] + rMtx[2, 2])
+            );
+            q.x /= 2;
+        }
+
+        trace = -rMtx[0,0]-rMtx[1,1]+rMtx[2,2];
+        if(trace>eta)
+        {
+            q.z = Mathf.Sqrt(1 + trace) / 2;
+        }
+        else
+        {
+            q.z = Mathf.Sqrt(
+                (Mathf.Pow(rMtx[1, 0] - rMtx[0, 1], 2) + Mathf.Pow(rMtx[2, 0] + rMtx[0, 2], 2) + Mathf.Pow(rMtx[2, 1] + rMtx[1, 2], 2))
+                /
+                (3 + rMtx[0, 0] + rMtx[1, 1] - rMtx[2, 2])
+            );
+            q.z /= 2;
+        }
+
+        return new UnityEngine.Quaternion(q.x, q.y, q.z, q.w);
+    }
+
+    /// <summary>
+    /// Calculate mutliplication of given matrix with it's transpose version
+    /// </summary>
+    /// <param name="A"></param>
+    /// <returns></returns>
+    public float[,] MatrixATA(float[,] A)
+    {
+        int n = A.GetLength(1);
+        int m = A.GetLength(0);
+
+        float[,] result = new float[n, n];
+        for (int y = 0; y < n; y++)
+        {
+            for (int x = 0; x < n; x++)
             {
-                V[x, y] = 0;
-                for (int k = 0; k < A.GetLength(1); k++)//sum over columns in A and rows in A
+                float sum = 0;
+                for (int i = 0; i < m; i++)
                 {
-                    V[x, y] += A[x, k] * A[y, k] / A.GetLength(1);
+                    sum += A[i, x] * A[i, y];
                 }
+                result[x, y] = sum;
             }
         }
-        return V;
+        return result;
     }
 }
