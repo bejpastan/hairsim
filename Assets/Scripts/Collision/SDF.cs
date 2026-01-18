@@ -133,11 +133,11 @@ public class SDF : MonoBehaviour
 
         Debug.Log($"vertices count {boneVertices[boneId].Count}");
 
-        //foreach (Vector3 vertex in boneVertices[boneId])
-        //{
-        //    Vector3 worldVertex = skinnedMeshRenderer.transform.TransformPoint(vertex);
-        //    mean += worldVertex / boneVertices[boneId].Count;
-        //}
+        foreach (Vector3 vertex in boneVertices[boneId])
+        {
+            Vector3 worldVertex = skinnedMeshRenderer.transform.TransformPoint(vertex);
+            mean += worldVertex / boneVertices[boneId].Count;
+        }
 
         foreach (Vector3 vertex in boneVertices[boneId])
         {
