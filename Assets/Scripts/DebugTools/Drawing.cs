@@ -4,11 +4,21 @@ public static class Drawing
 {
     private static int circleSegmentCount = 36;
 
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="position"></param>
+    /// <param name="scale">diameters</param>
+    /// <param name="color"></param>
+    /// <param name="quaternion"></param>
+    /// <param name="duration"></param>
     public static void DrawSphereoid(Vector3 position, Vector3 scale, Color color, Quaternion quaternion, float duration = 1)
     {
         Quaternion up = quaternion * Quaternion.Euler(90, 0, 0);
         Quaternion right = quaternion * Quaternion.Euler(0, 0, 90);
         Quaternion forward = quaternion;
+        scale /= 2;
 
         DrawCircle(position, up, new Vector2(scale.x, scale.y), color, duration);
         DrawCircle(position, right, new Vector2(scale.y, scale.z), color, duration);
