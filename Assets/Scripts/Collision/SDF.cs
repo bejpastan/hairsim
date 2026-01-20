@@ -201,10 +201,10 @@ public class SDF : MonoBehaviour
         Debug.Log($"Calculating SDF for bone {bones[boneId].boneName} with {boneVertices[boneId].Count} vertices.");
 
         //set offset, rotation and parameters
-        sdfOffset[boneId] = mean - boneTransforms[boneId].position;
-        Quaternion relativeRotation = Quaternion.Inverse(boneTransforms[boneId].rotation) * elementRotation;
-        sdfRotations[boneId] = new Vector4(relativeRotation.x, relativeRotation.y, relativeRotation.z, relativeRotation.w);
-        sdfParameters[boneId] = new Vector3(sVal[0], sVal[1], sVal[2]);
+        //sdfOffset[boneId] = mean - boneTransforms[boneId].position;
+        //Quaternion relativeRotation = Quaternion.Inverse(boneTransforms[boneId].rotation) * elementRotation;
+        //sdfRotations[boneId] = new Vector4(relativeRotation.x, relativeRotation.y, relativeRotation.z, relativeRotation.w);
+        //sdfParameters[boneId] = new Vector3(sVal[0], sVal[1], sVal[2]);
     }
 
     public float[] Sizes(float[,] A, Vector3[] basis)

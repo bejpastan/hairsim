@@ -3,6 +3,9 @@
 #pragma kernel CalcStartPositionLines
 #pragma kernel AddPoint
 
+#pragma kernel CalcConstraints
+#pragma kernel PostConstraints
+#pragma kernel Predictions
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 
@@ -244,6 +247,102 @@ void CalcPosition(uint3 id : SV_DispatchThreadID)
     }
 }
 
+
+[numthreads(64, 1, 1)]
+void Predictions(uint id : SV_DispatchThreadID)
+{
+    if( id.x <_Strands)
+    {
+        uint baseIndex = id.x;
+        uint strandIndex = id.x;
+    //apply cap motion
+        _PointsPositions[strandIndex] += _CapTranslation;
+    //apply cap rotation
+        _PointsPositions[strandIndex] = RotateByQuaternion(_PointsPositions[strandIndex] - _CapPosition, _CapRotationDelta) + _CapPosition;
+    //apply rotation to quaternion
+        _SegmentsQuaternions[strandIndex] = normalize(HamiltonProduct(_CapRotationDelta, _SegmentsQuaternions[strandIndex]));
+    
+        _PointData[2 * (strandIndex)] = _PointsPositions[strandIndex];
+        _PredictedQuaternions[strandIndex] = _SegmentsQuaternions[strandIndex];
+    
+    //applying external forces
+        for (int ring = 1; ring < _Segments + 1; ring++)
+        {
+            AddGravity(strandIndex + (_Strands * ring));
+        }
+    
+    //damp velocities and predict positions
+        for (int ring = 0; ring < _Segments + 1; ring++)
+        {
+            baseIndex = strandIndex + (_Strands * ring);
+            _PointData[2 * baseIndex + 1] *= _VelocityDumping;
+            _PointData[2 * (baseIndex)] = _PointsPositions[baseIndex] + (_PointData[2 * baseIndex + 1]);
+        }
+    
+    //dump velocities and predict quaternions
+        for (int segment = 0; segment < _Segments; segment++)
+        {
+            baseIndex = strandIndex + (_Strands * segment);
+            _AngularVelocities[baseIndex] *= _VelocityDumping;
+            _PredictedQuaternions[baseIndex] = normalize(_SegmentsQuaternions[baseIndex] + 0.5 * HamiltonProduct(_SegmentsQuaternions[baseIndex], float4(_AngularVelocities[baseIndex], 0)));
+        }
+
+    }
+}
+
+[numthreads(64, 1, 1)]
+void CalcConstraints(uint id : SV_DispatchThreadID)
+{
+    if (id.x < _Strands)
+    {
+        uint baseIndex = id.x;
+        uint strandIndex = id.x;
+        for (int iteration = 0; iteration < _IterationCount; iteration++)
+        {
+        //distance constraint
+            for (int ring = 0; ring < _Segments; ring++)
+            {
+                baseIndex = strandIndex + (_Strands * ring);
+                CalcDistantConstraint_v2(_PointData[2 * (baseIndex)], _PointData[2 * (baseIndex + _Strands)], _PredictedQuaternions[baseIndex], baseIndex);
+            }
+    
+        //bending constraint
+            for (int segment = 0; segment < _Segments - 1; segment++)
+            {
+                baseIndex = strandIndex + (_Strands * segment);
+                CalcBendConstraint_v2(_PredictedQuaternions[baseIndex], _PredictedQuaternions[baseIndex + _Strands], baseIndex);
+            }
+        }
+    }
+}
+
+[numthreads(64,1,1)]
+void PostConstraints(uint id: SV_DispatchThreadID)
+{
+    if (id.x < _Strands)
+    {
+        uint baseIndex = id.x;
+        uint strandIndex = id.x;
+        for (int segment = 0; segment < _Segments; segment++)
+        {
+            baseIndex = strandIndex + (_Strands * segment);
+            float4 invertedQ = float4(-_SegmentsQuaternions[baseIndex].x, -_SegmentsQuaternions[baseIndex].y, -_SegmentsQuaternions[baseIndex].z, _SegmentsQuaternions[baseIndex].w);
+            float4 change = 2 * HamiltonProduct(invertedQ, _PredictedQuaternions[baseIndex]);
+            _AngularVelocities[baseIndex] = float3(change.x, change.y, change.z);
+            _SegmentsQuaternions[baseIndex] = _PredictedQuaternions[baseIndex];
+        }
+         
+        for (int ring = 0; ring < _Segments + 1; ring++)
+        {
+            baseIndex = strandIndex + (_Strands * ring);
+            float3 change = _PointData[2 * (baseIndex)] - _PointsPositions[baseIndex];
+            _PointData[2 * baseIndex + 1] = change; //velocity update
+            _PointsPositions[baseIndex] = _PointData[2 * (baseIndex)];
+        }
+    }
+}
+
+
 [numthreads(64, 1, 1)]
 void CalcStartPositionLines(uint3 id : SV_DispatchThreadID)
 {
@@ -252,7 +351,6 @@ void CalcStartPositionLines(uint3 id : SV_DispatchThreadID)
         CalcStartPositionLines(id.x);
     }
 }
-
 
 [numthreads(32, 1, 1)]
 void AddPoint(uint3 id : SV_DispatchThreadID)
