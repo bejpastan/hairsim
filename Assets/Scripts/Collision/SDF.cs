@@ -18,6 +18,7 @@ public class SDF : MonoBehaviour
     Dictionary<int, List<Vector3>> boneVertices;
 
     List<Vector4> sdfRotations;//rotation in localspace as quaternion
+    List<Vector4> originBoneRotation;
     List<Vector3> sdfOffset;//position in local space
     List<Vector3> sdfParameters;//this are XYZ sizes of elipsoid
 
@@ -34,34 +35,19 @@ public class SDF : MonoBehaviour
         sdfRotations = new();
         sdfParameters = new();
         sdfOffset = new();
-
+        originBoneRotation = new();
         for (int i = 0; i < bones.Count; i++)
         {
             CalculateSDF(i);
         }
-
     }
 
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
+        for (int i = 0; i < boneTransforms.Count; i++)
         {
-            CalcNext();
-        }
-    }
-
-    int lastCalc = 0;
-    private async void CalcNext()
-    {
-        if (lastCalc < bones.Count)
-        {
-            CalculateSDF(lastCalc);
-            lastCalc++;
-        }
-        else
-        {
-            lastCalc = 0;
+            MoveSDF(i);
         }
     }
 
@@ -196,15 +182,17 @@ public class SDF : MonoBehaviour
         //    Debug.DrawLine(mean, mean + sVec[i] * sVal[i], Color.blue, 5f);
         //}
 
+        //I need to calculate quaternion differently
+
         Quaternion elementRotation = Quaternion.LookRotation(sVec[2], sVec[1]);
-        Drawing.DrawSphereoid(mean, new Vector3(sVal[0], sVal[1], sVal[2]) * 2, Color.red, elementRotation, 5f);
-        Debug.Log($"Calculating SDF for bone {bones[boneId].boneName} with {boneVertices[boneId].Count} vertices.");
+        //Drawing.DrawSphereoid(mean, new Vector3(sVal[0], sVal[1], sVal[2]) * 2, Color.red, elementRotation, 5f);
 
         //set offset, rotation and parameters
-        //sdfOffset[boneId] = mean - boneTransforms[boneId].position;
-        //Quaternion relativeRotation = Quaternion.Inverse(boneTransforms[boneId].rotation) * elementRotation;
-        //sdfRotations[boneId] = new Vector4(relativeRotation.x, relativeRotation.y, relativeRotation.z, relativeRotation.w);
-        //sdfParameters[boneId] = new Vector3(sVal[0], sVal[1], sVal[2]);
+        sdfOffset.Add(mean - boneTransforms[boneId].position);
+        Quaternion relativeRotation = Quaternion.Inverse(boneTransforms[boneId].rotation) * elementRotation;
+        sdfRotations.Add(new Vector4(relativeRotation.x, relativeRotation.y, relativeRotation.z, relativeRotation.w));
+        sdfParameters.Add(new Vector3(sVal[0], sVal[1], sVal[2]));
+        originBoneRotation.Add(new Vector4(boneTransforms[boneId].rotation.x, boneTransforms[boneId].rotation.y, boneTransforms[boneId].rotation.z, boneTransforms[boneId].rotation.w));
     }
 
     public float[] Sizes(float[,] A, Vector3[] basis)
@@ -286,5 +274,24 @@ public class SDF : MonoBehaviour
         Matrix<float> result = matrix * pointMtx;
         newPoint = new Vector3(result[0, 0], result[1, 0], result[2, 0]);
         return newPoint;
+    }
+
+    private void MoveSDF(int boneId)
+    {
+        //relative rotation of SDF to oroginal bone rotation
+        Quaternion relativeRotation = new Quaternion(sdfRotations[boneId].x, sdfRotations[boneId].y, sdfRotations[boneId].z, sdfRotations[boneId].w);
+        //new rotation of SDF
+        Quaternion elementRotation = boneTransforms[boneId].rotation * new Quaternion(sdfRotations[boneId].x, sdfRotations[boneId].y, sdfRotations[boneId].z, sdfRotations[boneId].w);
+        //original bone rotation
+        Quaternion origineBoneRotation = new Quaternion(originBoneRotation[boneId].x, originBoneRotation[boneId].y, originBoneRotation[boneId].z, originBoneRotation[boneId].w);
+        //change in bone rotation from original to current
+        Quaternion rotationChange = (Quaternion.Inverse(origineBoneRotation) * boneTransforms[boneId].rotation);
+        //rotation of offset to handle rotation of bone
+        Vector3 newTranslation = rotationChange * sdfOffset[boneId];
+        //new position of SDF
+        Vector3 newPos = boneTransforms[boneId].position + newTranslation;
+
+        //Debug.Log($"original rotation {origineBoneRotation.x}, {origineBoneRotation.y}, {origineBoneRotation.z}, {origineBoneRotation.w}, \n relative bone rotation {rotationChange.x}, {rotationChange.y}, {rotationChange.z}, {rotationChange.w}");
+        Drawing.DrawSphereoid(newPos, sdfParameters[boneId] * 2, Color.red, elementRotation, 0.015f);
     }
 }
