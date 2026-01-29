@@ -42,15 +42,17 @@ public class SDF : MonoBehaviour
         }
     }
 
-
-    private void Update()
+    private void FixedUpdate()
     {
-        for (int i = 0; i < boneTransforms.Count; i++)
+        //for(int i=46; i<48; i++)
+        //{
+        //    MoveSDF(i);
+        //}
+        for(int i=0; i< bones.Count; i++)
         {
             MoveSDF(i);
         }
     }
-
     private void GetBones()
     {
         bones = characterRigs.humanDescription.human.ToList();
@@ -175,17 +177,7 @@ public class SDF : MonoBehaviour
         }
 
         sVec[2] = Vector3.Cross(sVec[0], sVec[1]).normalized;//ensuring orthogonality and right hand system
-
-        Debug.Log($"Sizes for bone {bones[boneId].boneName}: {sVal[0]}, {sVal[1]}, {sVal[2]}");
-        //for (int i = 0; i < values.Length; i++)
-        //{
-        //    Debug.DrawLine(mean, mean + sVec[i] * sVal[i], Color.blue, 5f);
-        //}
-
-        //I need to calculate quaternion differently
-
         Quaternion elementRotation = Quaternion.LookRotation(sVec[2], sVec[1]);
-        //Drawing.DrawSphereoid(mean, new Vector3(sVal[0], sVal[1], sVal[2]) * 2, Color.red, elementRotation, 5f);
 
         //set offset, rotation and parameters
         sdfOffset.Add(mean - boneTransforms[boneId].position);
@@ -276,22 +268,23 @@ public class SDF : MonoBehaviour
         return newPoint;
     }
 
+
+    Vector3 maxvalue = Vector3.zero;
+    Vector3 minvalue = Vector3.zero*-1000;
+    //only for debugging purposes
     private void MoveSDF(int boneId)
     {
-        //relative rotation of SDF to oroginal bone rotation
+        //I should move this to shader
         Quaternion relativeRotation = new Quaternion(sdfRotations[boneId].x, sdfRotations[boneId].y, sdfRotations[boneId].z, sdfRotations[boneId].w);
-        //new rotation of SDF
-        Quaternion elementRotation = boneTransforms[boneId].rotation * new Quaternion(sdfRotations[boneId].x, sdfRotations[boneId].y, sdfRotations[boneId].z, sdfRotations[boneId].w);
-        //original bone rotation
+        Quaternion elementRotation = boneTransforms[boneId].rotation * relativeRotation;
         Quaternion origineBoneRotation = new Quaternion(originBoneRotation[boneId].x, originBoneRotation[boneId].y, originBoneRotation[boneId].z, originBoneRotation[boneId].w);
-        //change in bone rotation from original to current
-        Quaternion rotationChange = (Quaternion.Inverse(origineBoneRotation) * boneTransforms[boneId].rotation);
-        //rotation of offset to handle rotation of bone
+        Quaternion rotationChange = boneTransforms[boneId].rotation * Quaternion.Inverse(origineBoneRotation);
         Vector3 newTranslation = rotationChange * sdfOffset[boneId];
-        //new position of SDF
         Vector3 newPos = boneTransforms[boneId].position + newTranslation;
-
-        //Debug.Log($"original rotation {origineBoneRotation.x}, {origineBoneRotation.y}, {origineBoneRotation.z}, {origineBoneRotation.w}, \n relative bone rotation {rotationChange.x}, {rotationChange.y}, {rotationChange.z}, {rotationChange.w}");
-        Drawing.DrawSphereoid(newPos, sdfParameters[boneId] * 2, Color.red, elementRotation, 0.015f);
+        Debug.Log($"rotation change {rotationChange.x}, {rotationChange.y}, {rotationChange.z}, {rotationChange.w} \n new Translation {newTranslation.x}, {newTranslation.y}, {newTranslation.z}");
+        Drawing.DrawSphereoid(newPos, sdfParameters[boneId] * 2f, Color.red, elementRotation, 0f);
+        maxvalue = new Vector3(Mathf.Max(maxvalue.x, newPos.x), Mathf.Max(maxvalue.y, newPos.y), Mathf.Max(maxvalue.z, newPos.z));
+        minvalue = new Vector3(Mathf.Min(minvalue.x, newPos.x), Mathf.Min(minvalue.y, newPos.y), Mathf.Min(minvalue.z, newPos.z));
+        Debug.LogWarning($"max value {maxvalue.x}, {maxvalue.y}, {maxvalue.z} \n min value {minvalue.x}, {minvalue.y}, {minvalue.z}");
     }
 }
