@@ -6,6 +6,8 @@
 #pragma kernel CalcConstraints
 #pragma kernel PostConstraints
 #pragma kernel Predictions
+
+#include "../Math/Math.compute"
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 
@@ -52,18 +54,18 @@ float _BendHalfSin;
 float _VelocityDumping = 0.98f;
 int _IterationCount = 1;
 
-float RandFloat(uint seed, float state, float range)
-{
-    seed *= state;
-    uint word = ((seed >> ((seed >> 28u) + 4u)) ^ seed) * 277803737u;
-    return range * float((word >> 22u) ^ word) / 4294967295.0;
-}
+//float RandFloat(uint seed, float state, float range)
+//{
+//    seed *= state;
+//    uint word = ((seed >> ((seed >> 28u) + 4u)) ^ seed) * 277803737u;
+//    return range * float((word >> 22u) ^ word) / 4294967295.0;
+//}
 
-float3 RotateByQuaternion(float3 v, float4 q)
-{
-    float3 t = 2.0 * cross(q.xyz, v);
-    return v + q.w * t + cross(q.xyz, t);
-}
+//float3 RotateByQuaternion(float3 v, float4 q)
+//{
+//    float3 t = 2.0 * cross(q.xyz, v);
+//    return v + q.w * t + cross(q.xyz, t);
+//}
 
 void AddGravity(uint pointIndex)
 {
@@ -72,15 +74,15 @@ void AddGravity(uint pointIndex)
 }
 
 //to remamber, I have quaternion as (ai, bj, ck, d)
-float4 HamiltonProduct(float4 q_1, float4 q_2)
-{
-    float d = q_1.w * q_2.w - q_1.x * q_2.x - q_1.y * q_2.y - q_1.z * q_2.z;
-    float a = q_1.w * q_2.x + q_1.x * q_2.w + q_1.y * q_2.z - q_1.z * q_2.y;
-    float b = q_1.w * q_2.y - q_1.x * q_2.z + q_1.y * q_2.w + q_1.z * q_2.x;
-    float c = q_1.w * q_2.z + q_1.x * q_2.y - q_1.y * q_2.x + q_1.z * q_2.w;
+//float4 HamiltonProduct(float4 q_1, float4 q_2)
+//{
+//    float d = q_1.w * q_2.w - q_1.x * q_2.x - q_1.y * q_2.y - q_1.z * q_2.z;
+//    float a = q_1.w * q_2.x + q_1.x * q_2.w + q_1.y * q_2.z - q_1.z * q_2.y;
+//    float b = q_1.w * q_2.y - q_1.x * q_2.z + q_1.y * q_2.w + q_1.z * q_2.x;
+//    float c = q_1.w * q_2.z + q_1.x * q_2.y - q_1.y * q_2.x + q_1.z * q_2.w;
     
-    return float4(a, b, c, d);
-}
+//    return float4(a, b, c, d);
+//}
 
 void CalcDistantConstraint_v2(float3 pos1, float3 pos2, float4 quaternion, uint point1Index)
 {

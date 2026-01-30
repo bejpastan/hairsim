@@ -1,0 +1,27 @@
+float3 RotateByQuaternion(float3 v, float4 q)
+{
+    float3 t = 2.0 * cross(q.xyz, v);
+    return v + q.w * t + cross(q.xyz, t);
+}
+
+float4 HamiltonProduct(float4 q_1, float4 q_2)
+{
+    float d = q_1.w * q_2.w - q_1.x * q_2.x - q_1.y * q_2.y - q_1.z * q_2.z;
+    float a = q_1.w * q_2.x + q_1.x * q_2.w + q_1.y * q_2.z - q_1.z * q_2.y;
+    float b = q_1.w * q_2.y - q_1.x * q_2.z + q_1.y * q_2.w + q_1.z * q_2.x;
+    float c = q_1.w * q_2.z + q_1.x * q_2.y - q_1.y * q_2.x + q_1.z * q_2.w;
+    
+    return float4(a, b, c, d);
+}
+
+float RandFloat(uint seed, float state, float range)
+{
+    seed *= state;
+    uint word = ((seed >> ((seed >> 28u) + 4u)) ^ seed) * 277803737u;
+    return range * float((word >> 22u) ^ word) / 4294967295.0;
+}
+
+float ConjugateQuaternion(float4 q)
+{
+    return float4(-q.x, -q.y, -q.z, q.w);
+}

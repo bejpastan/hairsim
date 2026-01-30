@@ -36,11 +36,14 @@ public class SDF : MonoBehaviour
     GraphicsBuffer sdfRottationsBuffer;
     GraphicsBuffer sdfOffsetesBuffer;
     GraphicsBuffer sdfParametersBuffer;
+    GraphicsBuffer originalBonesRotation;
 
     GraphicsBuffer bonePositionBuffer;
     GraphicsBuffer boneRotationBuffer;
     NativeArray<Vector3> bonePositions;
     NativeArray<Vector4> boneRotations;
+
+    float cellSize=0;
 
     [SerializeField]
     bool debugMode = false;
@@ -48,6 +51,8 @@ public class SDF : MonoBehaviour
     [SerializeField]
     [Range(0f, 0.5f)]
     float weightThreshold = 0.2f;//TO DO, set this to constant value
+
+
 
     private void Start()
     {
@@ -78,12 +83,14 @@ public class SDF : MonoBehaviour
         boneRotations = new NativeArray<Vector4>(boneTransforms.Count, Allocator.Persistent);
         bonePositionBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, boneTransforms.Count, sizeof(float) * 3);
         boneRotationBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, boneTransforms.Count, sizeof(float) * 4);
+        originalBonesRotation = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bones.Count, sizeof(float) * 4);
         #endregion
 
         boneTransformArray = new TransformAccessArray(boneTransforms.Values.ToArray());
         sdfRottationsBuffer.SetData(sdfRotations.ToArray());
         sdfParametersBuffer.SetData(sdfParameters.ToArray());
         sdfOffsetesBuffer.SetData(sdfOffset.ToArray());
+        originalBonesRotation.SetData(originBoneRotation.ToArray());
     }
 
     private void Update()
@@ -245,6 +252,8 @@ public class SDF : MonoBehaviour
         sdfParameters.Add(new Vector3(sVal[0], sVal[1], sVal[2]));
         originBoneRotation.Add(new Vector4(boneTransforms[boneId].rotation.x, boneTransforms[boneId].rotation.y, boneTransforms[boneId].rotation.z, boneTransforms[boneId].rotation.w));
         boneArrayMap.Add(boneId);
+        
+        cellSize = Mathf.Max(Mathf.Max(sVal),cellSize);
     }
 
     public float[] Sizes(float[,] A, Vector3[] basis)

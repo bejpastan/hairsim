@@ -1,0 +1,33 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel MoveSDF
+
+#include "../Math/Math.compute"
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<float4> _sdfRottationsBuffer;//this is static
+RWStructuredBuffer<float3> _sdfOffsetesBuffer;//this is static
+RWStructuredBuffer<float3> _sdfParametersBuffer;//this is static
+
+RWStructuredBuffer<float3> _bonePositionBuffer;
+RWStructuredBuffer<float4> _boneRotationBuffer;
+RWStructuredBuffer<float4> _originalBonesRotation;//this is static
+
+
+
+int _sdfCount;
+int _cellSize;
+
+[numthreads(64,1,1)]
+void MoveSDF(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x<_sdfCount)
+    {
+        float4 newRot = HamiltonProduct(_boneRotationBuffer[id.x], _sdfRottationsBuffer[id.x]);
+        float4 rotationChange = HamiltonProduct(_boneRotationBuffer[id.x], ConjugateQuaternion(_originalBonesRotation[id.x]));
+        float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[id.x], rotationChange);
+        newPos += _bonePositionBuffer[id.x];
+        
+        //below implement collision logic
+    }
+}
