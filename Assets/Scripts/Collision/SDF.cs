@@ -2,7 +2,9 @@ using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Jobs;
 
 
 public class SDF : MonoBehaviour
@@ -13,8 +15,11 @@ public class SDF : MonoBehaviour
     [SerializeField]
     SkinnedMeshRenderer skinnedMeshRenderer;
 
+
     List<HumanBone> bones;
     Dictionary<int, Transform> boneTransforms;
+    TransformAccessArray boneTransformArray;
+
     Dictionary<int, List<Vector3>> boneVertices;
 
     List<Vector4> sdfRotations;//rotation in localspace as quaternion
@@ -22,9 +27,19 @@ public class SDF : MonoBehaviour
     List<Vector3> sdfOffset;//position in local space
     List<Vector3> sdfParameters;//this are XYZ sizes of elipsoid
 
+
+    GraphicsBuffer sdfRottationsBuffer;
+    GraphicsBuffer sdfOffsetesBuffer;
+    GraphicsBuffer sdfParametersBuffer;
+
+    GraphicsBuffer bonePositionBuffer;
+    GraphicsBuffer boneRotationBuffer;
+    NativeArray<Vector3> bonePositions;
+    NativeArray<Vector4> boneRotations;
+
     [SerializeField]
     [Range(0f, 0.5f)]
-    float weightThreshold = 0.2f;
+    float weightThreshold = 0.2f;//TO DO, set this to constant value
 
     private void Start()
     {
@@ -32,27 +47,38 @@ public class SDF : MonoBehaviour
         characterMesh = skinnedMeshRenderer.sharedMesh;
         boneTransforms = new();
         GetBonesVertices();
+        boneTransformArray = new TransformAccessArray(boneTransforms.Values.ToArray());
+
+        #region INITIALIZING BUFFERS
         sdfRotations = new();
+        sdfRottationsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bones.Count, sizeof(float) * 4);
+        sdfOffsetesBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bones.Count, sizeof(float) * 3);
+        sdfParametersBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bones.Count, sizeof(float) * 3);
         sdfParameters = new();
         sdfOffset = new();
+
+        bonePositions = new NativeArray<Vector3>(boneTransforms.Count, Allocator.Persistent);
+        boneRotations = new NativeArray<Vector4>(boneTransforms.Count, Allocator.Persistent);
+        bonePositionBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, boneTransforms.Count, sizeof(float) * 3);
+        boneRotationBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, boneTransforms.Count, sizeof(float) * 4);
+        #endregion
+
         originBoneRotation = new();
         for (int i = 0; i < bones.Count; i++)
         {
             CalculateSDF(i);
         }
+        sdfRottationsBuffer.SetData(sdfRotations.ToArray());
+        sdfParametersBuffer.SetData(sdfParameters.ToArray());
+        sdfOffsetesBuffer.SetData(sdfOffset.ToArray());
     }
 
-    private void FixedUpdate()
+    private void Update()
     {
-        //for(int i=46; i<48; i++)
-        //{
-        //    MoveSDF(i);
-        //}
-        for(int i=0; i< bones.Count; i++)
-        {
-            MoveSDF(i);
-        }
+        UpdateTransformData();   
     }
+
+
     private void GetBones()
     {
         bones = characterRigs.humanDescription.human.ToList();
@@ -63,6 +89,7 @@ public class SDF : MonoBehaviour
         BoneWeight[] boneWeights = characterMesh.boneWeights;
         boneVertices = new();
 
+        #region collecting weights
         for (int i = 0; i < boneWeights.Length; i++)
         {
             if (boneWeights[i].weight0 >= weightThreshold)
@@ -104,12 +131,14 @@ public class SDF : MonoBehaviour
                 boneVertices[boneWeights[i].boneIndex3].Add(characterMesh.vertices[i]);
             }
         }
+        #endregion
 
         //removing duplicates
         foreach (var key in boneVertices.Keys.ToList())
         {
             boneVertices[key] = boneVertices[key].Distinct().ToList();
         }
+
     }
 
     private void CalculateSDF(int boneId)
@@ -117,8 +146,6 @@ public class SDF : MonoBehaviour
         Vector3 mean = Vector3.zero;
 
         float[,] A = new float[boneVertices[boneId].Count, 3];//change X nad Y
-
-        Debug.Log($"vertices count {boneVertices[boneId].Count}");
 
         foreach (Vector3 vertex in boneVertices[boneId])
         {
@@ -269,22 +296,31 @@ public class SDF : MonoBehaviour
     }
 
 
-    Vector3 maxvalue = Vector3.zero;
-    Vector3 minvalue = Vector3.zero*-1000;
-    //only for debugging purposes
-    private void MoveSDF(int boneId)
+    //Vector3 maxvalue = Vector3.zero;
+    //Vector3 minvalue = Vector3.zero*-1000;
+    ////only for debugging purposes
+    //private void MoveSDF(int boneId)
+    //{
+    //    //I should move this to shader
+    //    Quaternion relativeRotation = new Quaternion(sdfRotations[boneId].x, sdfRotations[boneId].y, sdfRotations[boneId].z, sdfRotations[boneId].w);
+    //    Quaternion elementRotation = boneTransforms[boneId].rotation * relativeRotation;
+    //    Quaternion origineBoneRotation = new Quaternion(originBoneRotation[boneId].x, originBoneRotation[boneId].y, originBoneRotation[boneId].z, originBoneRotation[boneId].w);
+    //    Quaternion rotationChange = boneTransforms[boneId].rotation * Quaternion.Inverse(origineBoneRotation);
+    //    Vector3 newTranslation = rotationChange * sdfOffset[boneId];
+    //    Vector3 newPos = boneTransforms[boneId].position + newTranslation;
+    //    Debug.Log($"rotation change {rotationChange.x}, {rotationChange.y}, {rotationChange.z}, {rotationChange.w} \n new Translation {newTranslation.x}, {newTranslation.y}, {newTranslation.z}");
+    //    Drawing.DrawSphereoid(newPos, sdfParameters[boneId] * 2f, Color.red, elementRotation, 0f);
+    //    maxvalue = new Vector3(Mathf.Max(maxvalue.x, newPos.x), Mathf.Max(maxvalue.y, newPos.y), Mathf.Max(maxvalue.z, newPos.z));
+    //    minvalue = new Vector3(Mathf.Min(minvalue.x, newPos.x), Mathf.Min(minvalue.y, newPos.y), Mathf.Min(minvalue.z, newPos.z));
+    //    Debug.LogWarning($"max value {maxvalue.x}, {maxvalue.y}, {maxvalue.z} \n min value {minvalue.x}, {minvalue.y}, {minvalue.z}");
+    //}
+
+    private void UpdateTransformData()
     {
-        //I should move this to shader
-        Quaternion relativeRotation = new Quaternion(sdfRotations[boneId].x, sdfRotations[boneId].y, sdfRotations[boneId].z, sdfRotations[boneId].w);
-        Quaternion elementRotation = boneTransforms[boneId].rotation * relativeRotation;
-        Quaternion origineBoneRotation = new Quaternion(originBoneRotation[boneId].x, originBoneRotation[boneId].y, originBoneRotation[boneId].z, originBoneRotation[boneId].w);
-        Quaternion rotationChange = boneTransforms[boneId].rotation * Quaternion.Inverse(origineBoneRotation);
-        Vector3 newTranslation = rotationChange * sdfOffset[boneId];
-        Vector3 newPos = boneTransforms[boneId].position + newTranslation;
-        Debug.Log($"rotation change {rotationChange.x}, {rotationChange.y}, {rotationChange.z}, {rotationChange.w} \n new Translation {newTranslation.x}, {newTranslation.y}, {newTranslation.z}");
-        Drawing.DrawSphereoid(newPos, sdfParameters[boneId] * 2f, Color.red, elementRotation, 0f);
-        maxvalue = new Vector3(Mathf.Max(maxvalue.x, newPos.x), Mathf.Max(maxvalue.y, newPos.y), Mathf.Max(maxvalue.z, newPos.z));
-        minvalue = new Vector3(Mathf.Min(minvalue.x, newPos.x), Mathf.Min(minvalue.y, newPos.y), Mathf.Min(minvalue.z, newPos.z));
-        Debug.LogWarning($"max value {maxvalue.x}, {maxvalue.y}, {maxvalue.z} \n min value {minvalue.x}, {minvalue.y}, {minvalue.z}");
+        var job = new CollectingTransformData { bonesPositions = bonePositions, bonesRotations = boneRotations };
+        var handle = job.Schedule(boneTransformArray);
+        handle.Complete();
+        bonePositionBuffer.SetData(bonePositions);
+        boneRotationBuffer.SetData(boneRotations);
     }
 }
