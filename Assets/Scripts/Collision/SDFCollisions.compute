@@ -1,5 +1,5 @@
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel MoveSDF
+#pragma kernel PreprocessSDF
 
 #include "../Math/Math.compute"
 
@@ -7,19 +7,67 @@
 // with cs.SetTexture
 RWStructuredBuffer<float4> _sdfRottationsBuffer;//this is static
 RWStructuredBuffer<float3> _sdfOffsetesBuffer;//this is static
-RWStructuredBuffer<float3> _sdfParametersBuffer;//this is static
+RWStructuredBuffer<float3> _sdfParametersBuffer;//this is static, SDF radiuses
+int _sdfCount;
 
 RWStructuredBuffer<float3> _bonePositionBuffer;
 RWStructuredBuffer<float4> _boneRotationBuffer;
 RWStructuredBuffer<float4> _originalBonesRotation;//this is static
 
-
-
-int _sdfCount;
+RWStructuredBuffer<uint2> _MaskGrid;//I count cells from bottom left corner, support to 64 SDFs
+float3 _gridOrigin;//bottom left front corner of grid
 int _cellSize;
+int3 gridSizes;
+
+
+//return id of cell in _MaskGrid buffer
+int ToCell(float3 position)
+{
+    position = position - _gridOrigin;
+    position = floor(position / _cellSize);
+    int id = position.x + (position.y * gridSizes.x) + (position.z * gridSizes.x * gridSizes.y);
+    
+    return id;
+}
+
+void MaskCells(int sdfId, float3 newPos, float4 newRot)
+{       
+    float width = _sdfParametersBuffer[sdfId].x;
+    float height = _sdfParametersBuffer[sdfId].y;
+    float thicknes = _sdfParametersBuffer[sdfId].z;
+    
+    //t - top, d-bottom/down
+    //l-left, r-right
+    //b-back, f-front
+    float cellId = 0;
+    float3 tlb = newPos + RotateByQuaternion(float3(width,  height,     thicknes), newRot);
+    cellId = ToCell(tlb);
+    _MaskGrid[cellId] |= (1u << sdfId);
+    float3 tlf = newPos + RotateByQuaternion(float3(-width, height, -thicknes), newRot);
+    cellId = ToCell(tlf);
+    _MaskGrid[cellId] |= (1u << sdfId);
+    float3 trf = newPos + RotateByQuaternion(float3(-width, height, -thicknes), newRot);
+    cellId = ToCell(trf);
+    _MaskGrid[cellId] |= (1u << sdfId);
+    float3 trb = newPos + RotateByQuaternion(float3(-width, height,     thicknes), newRot);
+    cellId = ToCell(trb);
+    _MaskGrid[cellId] |= (1u << sdfId);
+    float3 dlb = newPos + RotateByQuaternion(float3(width, -height, thicknes), newRot);
+    cellId = ToCell(dlb);
+    _MaskGrid[cellId] |= (1u << sdfId);
+    float3 dlf = newPos + RotateByQuaternion(float3(-width, -height, -thicknes), newRot);
+    cellId = ToCell(dlf);
+    _MaskGrid[cellId] |= (1u << sdfId);
+    float3 drf = newPos + RotateByQuaternion(float3(-width, -height, -thicknes), newRot);
+    cellId = ToCell(drf);
+    _MaskGrid[cellId] |= (1u << sdfId);
+    float3 drb = newPos + RotateByQuaternion(float3(-width, -height, thicknes), newRot);
+    cellId = ToCell(drb);
+    _MaskGrid[cellId] |= (1u << sdfId);
+}
 
 [numthreads(64,1,1)]
-void MoveSDF(uint3 id : SV_DispatchThreadID)
+void PreprocessSDF(uint3 id : SV_DispatchThreadID)
 {
     if(id.x<_sdfCount)
     {
@@ -27,7 +75,6 @@ void MoveSDF(uint3 id : SV_DispatchThreadID)
         float4 rotationChange = HamiltonProduct(_boneRotationBuffer[id.x], ConjugateQuaternion(_originalBonesRotation[id.x]));
         float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[id.x], rotationChange);
         newPos += _bonePositionBuffer[id.x];
-        
-        //below implement collision logic
+        MaskCells(id.x, newPos, newRot);
     }
 }
