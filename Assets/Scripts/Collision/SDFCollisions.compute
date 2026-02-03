@@ -6,7 +6,7 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWStructuredBuffer<float4> _sdfRottationsBuffer;//this is static
-RWStructuredBuffer<float3> _sdfOffsetesBuffer;//this is static
+RWStructuredBuffer<float3> _sdfOffsetesBuffer; //this is static
 RWStructuredBuffer<float3> _sdfParametersBuffer;//this is static, SDF radiuses
 int _sdfCount;
 
@@ -14,20 +14,31 @@ RWStructuredBuffer<float3> _bonePositionBuffer;
 RWStructuredBuffer<float4> _boneRotationBuffer;
 RWStructuredBuffer<float4> _originalBonesRotation;//this is static
 
+RWStructuredBuffer<float4> _DebugBuffer;
+
 RWStructuredBuffer<uint2> _MaskGrid;//I count cells from bottom left corner, support to 64 SDFs
 float3 _gridOrigin;//bottom left front corner of grid
 int _cellSize;
-int3 gridSizes;
+int3 _gridSizes;
 
 
-//return id of cell in _MaskGrid buffer
+//return id of cell in _MaskGrid buffer, if outside of range return -1
 int ToCell(float3 position)
 {
     position = position - _gridOrigin;
     position = floor(position / _cellSize);
-    int id = position.x + (position.y * gridSizes.x) + (position.z * gridSizes.x * gridSizes.y);
+    int id = position.x + (position.y * _gridSizes.x) + (position.z * _gridSizes.x * _gridSizes.y);
     
-    return id;
+    if(id>_gridSizes.x *_gridSizes.y * _gridSizes.z)
+    {
+        id = -1;
+    }
+    else
+    {
+        id = max(id, -1);
+    }
+    
+    return id; //if outside return -1;
 }
 
 void MaskCells(int sdfId, float3 newPos, float4 newRot)
@@ -40,41 +51,50 @@ void MaskCells(int sdfId, float3 newPos, float4 newRot)
     //l-left, r-right
     //b-back, f-front
     float cellId = 0;
+    uint idErrorHandler;
     float3 tlb = newPos + RotateByQuaternion(float3(width,  height,     thicknes), newRot);
     cellId = ToCell(tlb);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u-idErrorHandler << sdfId);
     float3 tlf = newPos + RotateByQuaternion(float3(-width, height, -thicknes), newRot);
     cellId = ToCell(tlf);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u - idErrorHandler << sdfId);
     float3 trf = newPos + RotateByQuaternion(float3(-width, height, -thicknes), newRot);
     cellId = ToCell(trf);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u - idErrorHandler << sdfId);
     float3 trb = newPos + RotateByQuaternion(float3(-width, height,     thicknes), newRot);
     cellId = ToCell(trb);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u - idErrorHandler << sdfId);
     float3 dlb = newPos + RotateByQuaternion(float3(width, -height, thicknes), newRot);
     cellId = ToCell(dlb);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u - idErrorHandler << sdfId);
     float3 dlf = newPos + RotateByQuaternion(float3(-width, -height, -thicknes), newRot);
     cellId = ToCell(dlf);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u - idErrorHandler << sdfId);
     float3 drf = newPos + RotateByQuaternion(float3(-width, -height, -thicknes), newRot);
     cellId = ToCell(drf);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u - idErrorHandler << sdfId);
     float3 drb = newPos + RotateByQuaternion(float3(-width, -height, thicknes), newRot);
     cellId = ToCell(drb);
-    _MaskGrid[cellId] |= (1u << sdfId);
+    idErrorHandler = min(0, cellId);
+    _MaskGrid[cellId] |= (1u - idErrorHandler << sdfId);
 }
 
-[numthreads(64,1,1)]
+[numthreads(32,1,1)]
 void PreprocessSDF(uint3 id : SV_DispatchThreadID)
 {
     if(id.x<_sdfCount)
     {
         float4 newRot = HamiltonProduct(_boneRotationBuffer[id.x], _sdfRottationsBuffer[id.x]);
         float4 rotationChange = HamiltonProduct(_boneRotationBuffer[id.x], ConjugateQuaternion(_originalBonesRotation[id.x]));
-        float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[id.x], rotationChange);
-        newPos += _bonePositionBuffer[id.x];
-        MaskCells(id.x, newPos, newRot);
+        float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[id.x], rotationChange);//here works
+        newPos = newPos + _bonePositionBuffer[id.x];
+        //MaskCells(id.x, newPos, newRot);
     }
 }
