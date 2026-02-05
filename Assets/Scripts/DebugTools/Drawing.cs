@@ -36,4 +36,34 @@ public static class Drawing
             Debug.DrawLine(pointA, pointB, color, duration);
         }
     }
+
+    public static void DrawCube(Vector3 position, Vector3 sizes, Color color, float duration = 1)
+    { 
+        Debug.DrawLine(position + new Vector3(-sizes.x, -sizes.y, -sizes.z) / 2, position + new Vector3(sizes.x, -sizes.y, -sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(-sizes.x, -sizes.y, -sizes.z) / 2, position + new Vector3(-sizes.x, sizes.y, -sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(-sizes.x, -sizes.y, -sizes.z) / 2, position + new Vector3(-sizes.x, -sizes.y, sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(sizes.x, sizes.y, sizes.z) / 2, position + new Vector3(-sizes.x, sizes.y, sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(sizes.x, sizes.y, sizes.z) / 2, position + new Vector3(sizes.x, -sizes.y, sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(sizes.x, sizes.y, sizes.z) / 2, position + new Vector3(sizes.x, sizes.y, -sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(-sizes.x, sizes.y, -sizes.z) / 2, position + new Vector3(sizes.x, sizes.y, -sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(-sizes.x, sizes.y, -sizes.z) / 2, position + new Vector3(-sizes.x, sizes.y, sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(sizes.x, -sizes.y, -sizes.z) / 2, position + new Vector3(sizes.x, sizes.y, -sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(sizes.x, -sizes.y, -sizes.z) / 2, position + new Vector3(sizes.x, -sizes.y, sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(-sizes.x, -sizes.y, sizes.z) / 2, position + new Vector3(sizes.x, -sizes.y, sizes.z) / 2, color, duration);
+        Debug.DrawLine(position + new Vector3(-sizes.x, -sizes.y, sizes.z) / 2, position + new Vector3(-sizes.x, sizes.y, sizes.z) / 2, color, duration);
+    }
+
+    public static void DrawGrid(Vector3 cellSize, Vector3 size, Vector3 origin, Color color, float duration)
+    {
+        for (int x = 0; x < size.x / cellSize.x; x++)
+        {
+            for (int y = 0; y < size.x / cellSize.x; y++)
+            {
+                for (int z = 0; z < size.x / cellSize.x; z++)
+                {
+                    DrawCube(origin + new Vector3(x * cellSize.x, y * cellSize.y, z * cellSize.z) + cellSize / 2, cellSize, color, duration);
+                }
+            }
+        }
+    }
 }

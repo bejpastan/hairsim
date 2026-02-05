@@ -439,8 +439,8 @@ MonoBehaviour:
   debugMode: 0
   skinnedMeshRenderer: {fileID: 1567762458}
   collisionsShader: {fileID: 7200000, guid: bea9e039fe4073244a32fbb2ae2076ea, type: 3}
-  maxSegments: 100
-  segmentLength: 0.1
+  maxSegments: 40
+  segmentLength: 0.025
   hairObject: {fileID: 664974951}
 --- !u!1001 &1979563990
 PrefabInstance:
@@ -499,9 +499,13 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5866666021909216657, guid: 2faa610713d3b3c439473daa55e8c60a, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: 2faa610713d3b3c439473daa55e8c60a, type: 3}
       propertyPath: m_Controller
       value: 
-      objectReference: {fileID: 9100000, guid: 5042a66b3246fc840a4e683091267504, type: 2}
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:

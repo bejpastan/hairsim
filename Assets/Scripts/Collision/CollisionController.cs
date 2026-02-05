@@ -1,3 +1,4 @@
+using System;
 using System.Data.SqlTypes;
 using System.Threading.Tasks;
 using Unity.Mathematics;
@@ -52,9 +53,9 @@ public class CollisionController : MonoBehaviour
         //LogData();
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
-        CalculateCollisions();
+        //CalculateCollisions();
     }
 
     public void PrepareCollision()
@@ -100,10 +101,58 @@ public class CollisionController : MonoBehaviour
         collisionsShader.SetInt("_sdfCount", boneCount);
 
         collisionsShader.Dispatch(prepareCollisionDataKernel, Mathf.CeilToInt(sdfCount / 32f), 1, 1);
-        for (int i=0; i< sdfCount; i++)
+        for (int i = 0; i < sdfCount; i++)
         {
             sdfData.MoveSDF(i);
         }
+        LogBinary(grid.GridBuffer, 8);
+        //LogData<Vector4>(debugBuffer);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="buffer"></param>
+    /// <param name="itemSize">in bytes</param>
+    private void LogBinary(GraphicsBuffer buffer, int itemSize)
+    {
+        var data = new byte[buffer.count*itemSize];
+        try
+        {
+            buffer.GetData(data);
+        }
+        catch (System.Exception e)
+        {
+            Debug.Log($"LogBinary: failed to GetData from buffer: {e.Message}");
+            return;
+        }
+        for (int i = 0; i < data.Length; i+=itemSize)
+        {
+            string logString = $"id:{i}, ";
+            bool haveOne = false;
+            for (int j = 0; j < itemSize; j++)
+            {
+
+                logString += $"{Convert.ToString(data[i+j], 2)}, ";
+                haveOne = haveOne || data[i+j] > 0;//idk something is not working here
+            }
+
+            int index = i/itemSize;
+            Debug.Log(logString);
+            int x = index % grid.Size;
+            int y = ((index-x)/grid.Size)%grid.Size;
+            int z = ((index-x - (y*grid.Size))/(grid.Size*grid.Size));
+            Vector3 translation = new Vector3(x*grid.CellSize, y*grid.CellSize, z*grid.CellSize);
+            if(haveOne)
+            {
+                Drawing.DrawCube(grid.GridOrigin + translation, grid.CellSize * Vector3.one, Color.red, 10);
+            }
+            else
+            {
+                //Drawing.DrawCube(grid.GridOrigin + translation, grid.CellSize * Vector3.one, Color.green, 2);
+            }
+        }
+
     }
 
     private void LogData<T>(GraphicsBuffer bufferToRead)
