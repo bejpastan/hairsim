@@ -17,6 +17,7 @@ Shader "Custom/HairShader"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             StructuredBuffer<float3> _Vertices;
             StructuredBuffer<int> _Indices;
@@ -41,6 +42,7 @@ Shader "Custom/HairShader"
             {
                 float4 positionCS : SV_POSITION;
                 float4 color : COLOR;
+                half light : TEXCOORD2;
             };
 
             v2f vert (appdata v)
@@ -65,13 +67,16 @@ Shader "Custom/HairShader"
 
                 o.positionCS = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, worldPosition));
                 o.color = _BaseColor;
+
+                Light light = GetMainLight();
+                o.light = max(LightingLambert(light.color, light.direction, normalize(worldPosition - centre)),0.13) * max(light.direction.y *0.75 +0.25, 0);
                 
                 return o;
             }
 
             float4 frag (v2f i) : SV_Target
             {
-                return i.color;
+                return i.color * i.light;//I need to make this more smooth, to have more ligth also on the "dark" side of the strand
             }
             ENDHLSL
         }
