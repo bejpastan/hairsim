@@ -1,0 +1,82 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel BuildVertices
+#pragma kernel BuildIndices
+#pragma kernel SetClosingIndices
+
+
+RWStructuredBuffer<float3> _Vertices;
+RWStructuredBuffer<int> _Indices;
+
+//RWByteAddressBuffer _Vertices;
+//RWByteAddressBuffer _Indices;
+uint _Segments;
+float _BaseSize;
+uint _verticesCount;
+uint _indicesCount;
+
+
+void GetIndice(uint index)//index is the quad index
+{
+    uint segment = index / 4;
+    uint vStart = index; //this is first vertix of the quad
+    uint vNext = (vStart + 1)%4 + segment * 4; //this neighbor vertix in the quad
+
+    uint v0 = vStart;
+    uint v1 = vNext;
+    uint v2 = vStart + 4;
+    uint v3 = vNext + 4;
+    
+    uint offset = index * 6;
+    _Indices[offset] = v1;
+    _Indices[offset + 1] = v2;
+    _Indices[offset + 2] = v0;
+    _Indices[offset + 3] = v3;
+    _Indices[offset + 4] = v2;
+    _Indices[offset + 5] = v1;
+}
+
+void GetPosition(uint index)
+{
+    float i = index % 4;
+    float a = i % 2;
+
+    float y = 0;
+    uint offset = index * 12;
+
+    _Vertices[index] = float3(((i - a) - 1) * a * _BaseSize, y, ((i - a) - 1) * ((1 + i) % 2) * _BaseSize);
+}
+
+[numthreads(64, 1, 1)]
+void BuildIndices(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (_Segments + 1) * 4)
+    {
+        return;
+    }
+    GetIndice(id.x);
+}
+
+[numthreads(1, 1, 1)]
+void SetClosingIndices(uint3 id : SV_DispatchThreadID)
+{
+    uint baseOffset = _indicesCount - 6;
+    uint baseVertex = _verticesCount - 4;
+    // First triangle
+    _Indices[baseOffset + 0] = baseVertex + 0u;
+    _Indices[baseOffset + 1] = baseVertex + 1u;
+    _Indices[baseOffset + 2] = baseVertex + 2u;
+    // Second triangle
+    _Indices[baseOffset + 3] = baseVertex + 2u;
+    _Indices[baseOffset + 4] = baseVertex + 3u;
+    _Indices[baseOffset + 5] = baseVertex + 0u;
+}
+
+[numthreads(64, 1, 1)]
+void BuildVertices(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _verticesCount)
+    {
+        return;
+    }
+    GetPosition(id.x);
+}

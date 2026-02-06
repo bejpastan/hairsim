@@ -1,0 +1,155 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel PreprocessSDF
+
+#include "../Math/Math.compute"
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<float4> _sdfRottationsBuffer;//this is static
+RWStructuredBuffer<float3> _sdfOffsetesBuffer; //this is static
+RWStructuredBuffer<float3> _sdfParametersBuffer;//this is static, SDF radiuses
+int _sdfCount;
+
+RWStructuredBuffer<float3> _bonePositionBuffer;
+RWStructuredBuffer<float4> _boneRotationBuffer;
+RWStructuredBuffer<float4> _originalBonesRotation;//this is static
+
+RWStructuredBuffer<float4> _DebugBuffer;
+
+RWStructuredBuffer<uint2> _MaskGrid;//I count cells from bottom left corner, support to 64 SDFs
+float3 _gridOrigin;//bottom left front corner of grid
+float _cellSize;
+int3 _gridSizes;
+
+
+float4x4 QuaternionToMatrix(float4 q)
+{
+    q = normalize(q);
+    float4x4 rotationMatrix = float4x4
+    (
+        1 - 2 * ((q.y * q.y) + (q.z * q.z)), 2 * (q.x * q.y - q.z * q.w), 2 * (q.x * q.z + q.y * q.w), 0,
+        2 * ((q.x * q.y) + (q.z * q.w)), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z - q.x * q.w), 0,
+        2 * ((q.x * q.z) + (q.y * q.w)), 2 * (q.z * q.y - q.x * q.w), 1 - 2 * (q.x * q.x + q.y * q.y), 0,
+        0, 0, 0, 1
+    );
+    return rotationMatrix;
+}
+
+//return id of cell in _MaskGrid buffer, if outside of range return -1
+int ToCell(float3 position)
+{
+    position = position - _gridOrigin;
+    position = round(position / _cellSize);
+    
+    int id = position.x + (position.y * _gridSizes.x) + (position.z * _gridSizes.x * _gridSizes.y);
+    
+    if(position.x>_gridSizes.x || position.y>_gridSizes.y || position.z>_gridSizes.z || position.x<0 || position.y<0 || position.z<0)
+    {
+        id = -1;
+    }
+    else
+    {
+        id = max(id, -1);
+    }
+    
+    return id; //if outside return -1;
+}
+
+void MaskCells(int sdfId, float3 newPos, float4 newRot)
+{           
+    float4x4 elipsoidMatrix = float4x4(
+        _sdfParametersBuffer[sdfId].x,      0, 0,   0,
+        0, _sdfParametersBuffer[sdfId].y,   0,      0,
+        0, 0, _sdfParametersBuffer[sdfId].z,        0,
+        0, 0, 0,                                    1
+    );
+    float4x4 rotationM = QuaternionToMatrix(newRot);
+    elipsoidMatrix = mul(rotationM, elipsoidMatrix);
+    
+    elipsoidMatrix[0].w = newPos.x;
+    elipsoidMatrix[1].w = newPos.y;
+    elipsoidMatrix[2].w = newPos.z;
+    
+    float minWidth = elipsoidMatrix[0].w - sqrt(pow(elipsoidMatrix[0].x, 2) + pow(elipsoidMatrix[0].y, 2) + pow(elipsoidMatrix[0].z, 2));
+    float maxWidth = elipsoidMatrix[0].w + sqrt(pow(elipsoidMatrix[0].x, 2) + pow(elipsoidMatrix[0].y, 2) + pow(elipsoidMatrix[0].z, 2));
+
+    float minHeight = elipsoidMatrix[1].w - sqrt(pow(elipsoidMatrix[1].x, 2) + pow(elipsoidMatrix[1].y, 2) + pow(elipsoidMatrix[1].z, 2));
+    float maxHeight = elipsoidMatrix[1].w + sqrt(pow(elipsoidMatrix[1].x, 2) + pow(elipsoidMatrix[1].y, 2) + pow(elipsoidMatrix[1].z, 2));
+
+    float minThicknes = elipsoidMatrix[2].w - sqrt(pow(elipsoidMatrix[2].x, 2) +  pow(elipsoidMatrix[2].y, 2) + pow(elipsoidMatrix[2].z, 2));
+    float maxThicknes = elipsoidMatrix[2].w + sqrt(pow(elipsoidMatrix[2].x, 2) + pow(elipsoidMatrix[2].y, 2) + pow(elipsoidMatrix[2].z, 2));
+    _DebugBuffer[sdfId] = float4(minWidth, minHeight, minThicknes, 0);
+    _DebugBuffer[sdfId+_sdfCount] = float4(maxWidth, maxHeight, maxThicknes, 0);
+    
+    //t - top, d-bottom/down
+    //l-left, r-right
+    //b-back, f-front
+    int cellId = 0;
+    
+    cellId = ToCell(newPos);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 tlb = float3(minWidth, maxHeight, maxThicknes);
+    cellId = ToCell(tlb);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 tlf = float3(minWidth, maxHeight, minThicknes);
+    cellId = ToCell(tlf);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 trf = float3(maxWidth, maxHeight, minThicknes);
+    cellId = ToCell(trf);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 trb = float3(maxWidth, maxHeight, maxThicknes);
+    cellId = ToCell(trb);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 dlb = float3(minWidth, minHeight, maxThicknes);
+    cellId = ToCell(dlb);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 dlf = float3(minWidth, minHeight, minThicknes);
+    cellId = ToCell(dlf);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 drf = float3(maxWidth, minHeight, minThicknes);
+    cellId = ToCell(drf);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+    float3 drb = float3(maxWidth, minHeight, maxThicknes);
+    cellId = ToCell(drb);
+    if (cellId >= 0)
+    {
+        _MaskGrid[cellId] |= (1u << sdfId);
+    }
+}
+
+[numthreads(32,1,1)]
+void PreprocessSDF(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x<_sdfCount)
+    {
+        float4 newRot = HamiltonProduct(_boneRotationBuffer[id.x], _sdfRottationsBuffer[id.x]);
+        float4 rotationChange = HamiltonProduct(_boneRotationBuffer[id.x], ConjugateQuaternion(_originalBonesRotation[id.x]));
+        float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[id.x], rotationChange);//here works
+        newPos = newPos + _bonePositionBuffer[id.x];
+        MaskCells(id.x, newPos, newRot);
+    }
+}
