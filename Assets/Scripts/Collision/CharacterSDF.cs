@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -323,7 +324,7 @@ public class CharacterSDF
         minvalue = new Vector3(Mathf.Min(minvalue.x, newPos.x), Mathf.Min(minvalue.y, newPos.y), Mathf.Min(minvalue.z, newPos.z));
         //Debug.LogWarning($"max value {maxvalue.x}, {maxvalue.y}, {maxvalue.z} \n min value {minvalue.x}, {minvalue.y}, {minvalue.z}");
         //log newPos and newRot
-        Debug.Log($"SDF {boneId} new position: {newPos.x},{newPos.y},{newPos.z}\nnew rotation: {rotationChange.x}, {rotationChange.y}, {rotationChange.z}, {rotationChange.w}");
+        //Debug.Log($"SDF {boneId} new position: {newPos.x},{newPos.y},{newPos.z}\nnew rotation: {rotationChange.x}, {rotationChange.y}, {rotationChange.z}, {rotationChange.w}");
     }
 
     /// <summary>

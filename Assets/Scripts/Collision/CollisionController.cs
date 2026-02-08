@@ -68,7 +68,7 @@ public class CollisionController : MonoBehaviour
         bonePositionBuffer = sdfData.BonePositionsBuffer;
     }
 
-    public async Task CalculateCollisions(GraphicsBuffer pointsData, int pointsCount)
+    public void CalculateCollisions(GraphicsBuffer pointsData, int pointsCount)
     {
         sdfData.UpdateSDFPositions();
         grid.SetDataToShader();
@@ -91,17 +91,19 @@ public class CollisionController : MonoBehaviour
         collisionsShader.SetBuffer(calcCollisionKernel, "_boneRotationBuffer", boneRotationBuffer);
         collisionsShader.SetBuffer(calcCollisionKernel, "_MaskGrid", grid.GridBuffer);
         collisionsShader.SetBuffer(calcCollisionKernel, "_PointData", pointsData);
+        //collisionsShader.SetBuffer(calcCollisionKernel, "_DebugBuffer", debugBuffer);
         collisionsShader.Dispatch(calcCollisionKernel, Mathf.CeilToInt(pointsCount / 32f), 1, 1);
 
         grid.SetDataToClear();
-        collisionsShader.Dispatch(clearMaskKernel, Mathf.CeilToInt(Mathf.Pow(grid.Size,3) / 32f), 1, 1);
 
         for (int i = 0; i < sdfCount; i++)
         {
             sdfData.MoveSDF(i);
         }
         LogBinary(grid.GridBuffer, 8);
-        //LogData<Vector4>(debugBuffer);
+        //LogData<Vector3>(pointsData);
+        collisionsShader.SetBuffer(clearMaskKernel, "_MaskGrid", grid.GridBuffer);
+        collisionsShader.Dispatch(clearMaskKernel, Mathf.CeilToInt(Mathf.Pow(grid.Size, 3) / 32f), 1, 1);
     }
 
     /// <summary>
@@ -128,19 +130,19 @@ public class CollisionController : MonoBehaviour
             for (int j = 0; j < itemSize; j++)
             {
 
-                //logString += $"{Convert.ToString(data[i + j], 2)}, ";
-                haveOne = haveOne || data[i + j] > 0;//idk something is not working here
+                logString += $"{Convert.ToString(data[i + j], 2)}, ";
+                haveOne = haveOne || data[i + j] > 0;
             }
 
             int index = i/itemSize;
-            //Debug.Log(logString);
             int x = index % grid.Size;
             int y = ((index-x)/grid.Size)%grid.Size;
             int z = ((index-x - (y*grid.Size))/(grid.Size*grid.Size));
             Vector3 translation = new Vector3(x*grid.CellSize, y*grid.CellSize, z*grid.CellSize);
             if(haveOne)
             {
-                Drawing.DrawCube(grid.GridOrigin + translation, grid.CellSize * Vector3.one, Color.red, 10);
+                Debug.Log(logString);
+                Drawing.DrawCube(grid.GridOrigin + translation, grid.CellSize * Vector3.one, Color.red, 0.016f);
             }
             else
             {
@@ -150,67 +152,21 @@ public class CollisionController : MonoBehaviour
 
     }
 
-    private void LogData<T>(GraphicsBuffer bufferToRead)
+    private void LogData<T>(GraphicsBuffer buffer)
     {
-        if (bufferToRead == null)
-        {
-            Debug.Log("LogData: buffer is null");
-            return;
-        }
-
-        int count = bufferToRead.count;
-        if (count ==0)
-        {
-            Debug.Log("LogData: buffer is empty");
-            return;
-        }
-
-        T[] data = new T[count];
+        var data = new T[buffer.count];
         try
         {
-            bufferToRead.GetData(data);
+            buffer.GetData(data);
         }
         catch (System.Exception e)
         {
             Debug.Log($"LogData: failed to GetData from buffer: {e.Message}");
             return;
         }
-
-        for (int i =0; i < count; i++)
+        for (int i = 0; i < data.Length; i++)
         {
-            object obj = data[i] as object;
-            string valueString;
-
-            if (obj is UnityEngine.Vector3 v3)
-            {
-                valueString = $"{v3.x}, {v3.y}, {v3.z}";
-            }
-            else if (obj is UnityEngine.Vector4 v4)
-            {
-                valueString = $"{v4.x}, {v4.y}, {v4.z}, {v4.w}";
-            }
-            else if (obj is UnityEngine.Quaternion q)
-            {
-                valueString = $"{q.x}, {q.y}, {q.z}, {q.w}";
-            }
-            else if (obj is float f)
-            {
-                valueString = f.ToString();
-            }
-            else if (obj is double d)
-            {
-                valueString = d.ToString();
-            }
-            else if (obj is int n)
-            {
-                valueString = n.ToString();
-            }
-            else
-            {
-                valueString = obj?.ToString() ?? "null";
-            }
-
-            Debug.Log($"id:{i}, value:{valueString}");
+            Debug.Log($"id:{i}, data:{data[i]}");
         }
     }
 }

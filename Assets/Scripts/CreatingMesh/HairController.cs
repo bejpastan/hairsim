@@ -56,6 +56,7 @@ public class HairController : MonoBehaviour
     float xRandRange = 1.0f;
 
     [Header("Collision settings")]
+    [SerializeField]
     float minSphereSize = 0;
 
     int verticesKernelId;
@@ -75,14 +76,14 @@ public class HairController : MonoBehaviour
     MaterialPropertyBlock matProps;
 
     #region Points buffers
-    ComputeBuffer pointsPositionData;
-    ComputeBuffer positions;
-    ComputeBuffer segmentsQuaternions;
-    ComputeBuffer angularV;
-    ComputeBuffer invertedMasses;
-    ComputeBuffer invertedIntertias;
-    ComputeBuffer predictedQuaternions;
-    ComputeBuffer debugBuffer;
+    GraphicsBuffer pointsPositionData;
+    GraphicsBuffer positions;
+    GraphicsBuffer segmentsQuaternions;
+    GraphicsBuffer angularV;
+    GraphicsBuffer invertedMasses;
+    GraphicsBuffer invertedIntertias;
+    GraphicsBuffer predictedQuaternions;
+    GraphicsBuffer debugBuffer;
     #endregion
 
     int startPositionKernelLinesId;
@@ -162,15 +163,15 @@ public class HairController : MonoBehaviour
         startPositionKernelLinesId = strandPositionShader.FindKernel("CalcStartPositionLines");
         addPointKernelId = strandPositionShader.FindKernel("AddPoint");
 
-        positions = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float) * 3);
-        pointsPositionData = new ComputeBuffer((int)strandCount * (maxSegments + 1)*2, sizeof(float) * 3);
-        invertedMasses = new ComputeBuffer((int)strandCount * (maxSegments + 1), sizeof(float));
-        segmentsQuaternions = new ComputeBuffer(strandCount*maxSegments, sizeof(float)*4);
-        angularV = new ComputeBuffer(strandCount*maxSegments, sizeof(float)*3);
-        invertedIntertias = new ComputeBuffer(strandCount * maxSegments, sizeof(float));
-        predictedQuaternions = new ComputeBuffer(strandCount * maxSegments, sizeof(float) * 4);
+        positions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, (int)strandCount * (maxSegments + 1), sizeof(float) * 3);
+        pointsPositionData = new GraphicsBuffer(GraphicsBuffer.Target.Structured,(int)strandCount * (maxSegments + 1)*2, sizeof(float) * 3);
+        invertedMasses = new GraphicsBuffer(GraphicsBuffer.Target.Structured, (int)strandCount * (maxSegments + 1), sizeof(float));
+        segmentsQuaternions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount *maxSegments, sizeof(float)*4);
+        angularV = new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount *maxSegments, sizeof(float)*3);
+        invertedIntertias = new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float));
+        predictedQuaternions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float) * 4);
 
-        debugBuffer = new ComputeBuffer(400, sizeof(float) * 4);
+        debugBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 400, sizeof(float) * 4);
 
         strandPositionShader.SetFloat("_TimeStep", Time.fixedDeltaTime);
         strandPositionShader.SetFloat("_IterationCount", iterationCount);
@@ -313,7 +314,7 @@ public class HairController : MonoBehaviour
         ReadGraphicBuffer<uint>(indexBuffer);
     }
 
-    private void ShowResults<T>(ComputeBuffer buffer)
+    private void ShowResults<T>(GraphicsBuffer buffer)
     {
         //get all data from the buffer
         T[] data = new T[buffer.count];
@@ -350,15 +351,10 @@ public class HairController : MonoBehaviour
                                                     (transform.rotation * Quaternion.Inverse(lastRotation)).w);
         strandPositionShader.SetVector("_CapRotationDelta", capRotationDelta);
         SetSimulationsBuffer();
-        for (int i = 0; i < 1; i++)
-        {
-            foreach (int kernel in pbdKernels)
-            {
-                strandPositionShader.Dispatch(kernel, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
-            }
-            //ShowResults<float4>(debugBuffer);
-        }
-        //strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+        strandPositionShader.Dispatch(pbdKernels[0], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+        strandPositionShader.Dispatch(pbdKernels[1], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+        collisionController.CalculateCollisions(pointsPositionData, pointsPositionData.count/2);
+        strandPositionShader.Dispatch(pbdKernels[2], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
 
         lastPosition = transform.position;
         lastRotation = transform.rotation;

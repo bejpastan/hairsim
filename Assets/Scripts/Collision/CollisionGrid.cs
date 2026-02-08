@@ -27,7 +27,6 @@ public class CollisionGrid
 
         size = Mathf.CeilToInt((Mathf.Max(capSizes) + (maxSegments * segmentLength))/cellSize);
         this.cellSize = ((Mathf.Max(capSizes) + (maxSegments * segmentLength)) / size);
-        Debug.Log($"size {size}, cell size, {cellSize}");
         gridBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, size * size * size, 8);//support max 64 SDFs
         gridBuffer.SetData(new uint2[size*size*size]);
         this.hairObject = hairObject;
@@ -44,7 +43,6 @@ public class CollisionGrid
         float shift = (size-1) * cellSize;
         shift /= 2;
         origin = hairObject.position - (Vector3.one * shift);
-        Debug.Log(origin);
         sdfCollisionShader.SetVector("_gridOrigin", new Vector4(origin.x, origin.y, origin.z , 0));
         sdfCollisionShader.SetFloat("_cellSize", cellSize);
     }
