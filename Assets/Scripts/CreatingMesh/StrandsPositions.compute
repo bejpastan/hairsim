@@ -8,21 +8,21 @@
 #pragma kernel Predictions
 
 #include "../Math/Math.compute"
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
 
 RWStructuredBuffer<float3> _PointsPositions;
 RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0
 
 //RWStructuredBuffer<float4> _RingQuaternions; 
 
-RWStructuredBuffer<float4> _SegmentsQuaternions;//new
-RWStructuredBuffer<float4> _PredictedQuaternions; //new
+RWStructuredBuffer<float4> _SegmentsQuaternions;
+RWStructuredBuffer<float4> _PredictedQuaternions;
 
-RWStructuredBuffer<float3> _AngularVelocities;//new
+RWStructuredBuffer<float3> _AngularVelocities;
 
 RWStructuredBuffer<float> _InvertedMasses;
-RWStructuredBuffer<float> _InvertedInterias;//new
+RWStructuredBuffer<float> _InvertedInterias;
+RWStructuredBuffer<float4> _DebugBuffer;
+
 int _Segments;
 int _Strands;
 
@@ -54,35 +54,11 @@ float _BendHalfSin;
 float _VelocityDumping = 0.98f;
 int _IterationCount = 1;
 
-//float RandFloat(uint seed, float state, float range)
-//{
-//    seed *= state;
-//    uint word = ((seed >> ((seed >> 28u) + 4u)) ^ seed) * 277803737u;
-//    return range * float((word >> 22u) ^ word) / 4294967295.0;
-//}
-
-//float3 RotateByQuaternion(float3 v, float4 q)
-//{
-//    float3 t = 2.0 * cross(q.xyz, v);
-//    return v + q.w * t + cross(q.xyz, t);
-//}
-
 void AddGravity(uint pointIndex)
 {
     float3 gravity = float3(0, -0.981f, 0);
     _PointData[(2* pointIndex) + 1] += gravity * _TimeStep;
 }
-
-//to remamber, I have quaternion as (ai, bj, ck, d)
-//float4 HamiltonProduct(float4 q_1, float4 q_2)
-//{
-//    float d = q_1.w * q_2.w - q_1.x * q_2.x - q_1.y * q_2.y - q_1.z * q_2.z;
-//    float a = q_1.w * q_2.x + q_1.x * q_2.w + q_1.y * q_2.z - q_1.z * q_2.y;
-//    float b = q_1.w * q_2.y - q_1.x * q_2.z + q_1.y * q_2.w + q_1.z * q_2.x;
-//    float c = q_1.w * q_2.z + q_1.x * q_2.y - q_1.y * q_2.x + q_1.z * q_2.w;
-    
-//    return float4(a, b, c, d);
-//}
 
 void CalcDistantConstraint_v2(float3 pos1, float3 pos2, float4 quaternion, uint point1Index)
 {
@@ -92,12 +68,14 @@ void CalcDistantConstraint_v2(float3 pos1, float3 pos2, float4 quaternion, uint 
     d_3 = normalize(d_3);
     float3 direction = ((1 / _SegmentLength) * (pos2 - pos1)) - d_3;//change direction
     
+    _DebugBuffer[point1Index] = float4(quaternion);
+    
     float3 deltaP_1 = (_InvertedMasses[point1Index] * _SegmentLength / invertedSum) * direction;
     float3 deltaP_2 = (_InvertedMasses[point1Index + _Strands] * _SegmentLength / invertedSum) * direction;
     
     float4 invertedE = float4(0, -1, 0, 0);
     float4 quaternionDirection = HamiltonProduct(HamiltonProduct(float4(direction, 0), _PredictedQuaternions[point1Index]), invertedE);
-    float4 deltaQ = float4(((_InvertedInterias[point1Index] * _SegmentLength * _SegmentLength / invertedSum) * quaternionDirection));
+    float4 deltaQ = float4((2*_InvertedInterias[point1Index] * _SegmentLength * _SegmentLength / invertedSum) * quaternionDirection);
     
     _PointData[2*(point1Index)] += deltaP_1 * _Stiffness;
     _PointData[2*(point1Index + _Strands)] -= deltaP_2 * _Stiffness;
@@ -109,14 +87,15 @@ void CalcBendConstraint_v2(float4 q1, float4 q2, uint segmentIndex)
     float invertedSum = _InvertedInterias[segmentIndex] + _InvertedInterias[segmentIndex + _Strands];
     float4 conjugateQ = float4(-q1.x, -q1.y, -q1.z, q1.w);
     
-    float4 qu = HamiltonProduct(conjugateQ, q2);
-    float4 quIm = float4(qu.x, qu.y, qu.z, 0) * 0.5;
+    float4 qu = HamiltonProduct(conjugateQ, q2);//diference between quaternions
+    
+    float4 quIm = float4(qu.x, qu.y, qu.z, 0);
     
     float4 q1Change = (_InvertedInterias[segmentIndex] / invertedSum) * HamiltonProduct(q1, quIm);
-    float4 q2Change = _InvertedInterias[segmentIndex+_Strands] / invertedSum * HamiltonProduct(q2, quIm);
+    float4 q2Change = (_InvertedInterias[segmentIndex + _Strands] / invertedSum) * HamiltonProduct(q2, quIm);
     
-    _PredictedQuaternions[segmentIndex] = normalize(_PredictedQuaternions[segmentIndex] + q1Change * _BendStiffness);
-    _PredictedQuaternions[segmentIndex + _Strands] = normalize(_PredictedQuaternions[segmentIndex + _Strands] - q2Change * _BendStiffness);
+    _PredictedQuaternions[segmentIndex] = normalize(_PredictedQuaternions[segmentIndex] + (q1Change * _BendStiffness * min(_SegmentLength, 1)));
+    _PredictedQuaternions[segmentIndex + _Strands] = normalize(_PredictedQuaternions[segmentIndex + _Strands] - (q2Change * _BendStiffness * min(_SegmentLength, 1)));
 }
 
 void CalcRingPositions_v2(uint strandIndex)

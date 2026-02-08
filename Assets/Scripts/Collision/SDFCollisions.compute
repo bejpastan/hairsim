@@ -1,5 +1,7 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel PreprocessSDF
+#pragma kernel ClearMask
+#pragma kernel CalcCollisions
 
 #include "../Math/Math.compute"
 
@@ -16,11 +18,15 @@ RWStructuredBuffer<float4> _originalBonesRotation;//this is static
 
 RWStructuredBuffer<float4> _DebugBuffer;
 
-RWStructuredBuffer<uint2> _MaskGrid;//I count cells from bottom left corner, support to 64 SDFs
+
+RWStructuredBuffer<uint2> _MaskGrid;//I count cells from bottom left corner, support up to 64 SDFs
 float3 _gridOrigin;//bottom left front corner of grid
 float _cellSize;
 int3 _gridSizes;
 
+
+int _pointCount;
+RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0
 
 float4x4 QuaternionToMatrix(float4 q)
 {
@@ -148,8 +154,54 @@ void PreprocessSDF(uint3 id : SV_DispatchThreadID)
     {
         float4 newRot = HamiltonProduct(_boneRotationBuffer[id.x], _sdfRottationsBuffer[id.x]);
         float4 rotationChange = HamiltonProduct(_boneRotationBuffer[id.x], ConjugateQuaternion(_originalBonesRotation[id.x]));
-        float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[id.x], rotationChange);//here works
+        float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[id.x], rotationChange);
         newPos = newPos + _bonePositionBuffer[id.x];
         MaskCells(id.x, newPos, newRot);
+    }
+}
+
+[numthreads(32,1,1)]
+void ClearMask(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x<_gridSizes.x*_gridSizes.y*_gridSizes.z)
+    {
+        _MaskGrid[id.x] = 0;
+    }
+}
+
+float3 RequiredChange(int sdfId, float3 pointPosition)
+{
+    float4 newRot = HamiltonProduct(_boneRotationBuffer[sdfId], _sdfRottationsBuffer[sdfId]); //new sdf rotation
+    float4 rotationChange = HamiltonProduct(_boneRotationBuffer[sdfId], ConjugateQuaternion(_originalBonesRotation[sdfId])); //change of rotation from original to new
+    float3 newPos = RotateByQuaternion(_sdfOffsetesBuffer[sdfId], rotationChange); //new sdf position
+    newPos = newPos + _bonePositionBuffer[sdfId];
+    //point position in sdf local space
+    pointPosition = pointPosition - newPos;
+    //rotate sdf and point to be in world space base
+    pointPosition = RotateByQuaternion(pointPosition, ConjugateQuaternion(newRot)); //this move point to sdf local space, but with world rotation, so we can use sdf parameters
+    float3 dir = normalize(pointPosition);
+    float dist = 1 - length(pointPosition);
+    dist = clamp(dist, 0, 1);
+    dir *= _sdfParametersBuffer[sdfId];
+    dir = RotateByQuaternion(dir, newRot);
+    return dir * dist;
+}
+
+[numthreads(32,1,1)]//id's of points
+void CalcCollisions(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x<_pointCount)
+    {
+        int cellId = ToCell(_PointData[id.x*2]);
+        uint2 mask = _MaskGrid[cellId];
+        int sdfId = firstbithigh(mask);
+        while(sdfId>0)
+        {
+            float3 changeVector = RequiredChange(sdfId, _PointData[id.x * 2]);
+            _PointData[id.x * 2] += changeVector;
+            //preparing to next iteration
+            mask &= (0u << sdfId);
+            sdfId = firstbithigh(mask);
+        }
     }
 }

@@ -6,17 +6,13 @@ using UnityEngine;
 
 public class CollisionController : MonoBehaviour
 {
-    [SerializeField]
-    float minSphereSize = 0.5f;
-    [SerializeField]
-    bool debugMode = false;
-    [SerializeField]
     SkinnedMeshRenderer skinnedMeshRenderer;
 
     #region Compute shader Settings
-    [SerializeField]
     ComputeShader collisionsShader;
     int prepareCollisionDataKernel;
+    int clearMaskKernel;
+    int calcCollisionKernel;
     #endregion
 
     #region Buffers
@@ -36,32 +32,17 @@ public class CollisionController : MonoBehaviour
     int boneCount;
     int sdfCount;
 
-    #region TMP FOR DEBUG
-    [SerializeField]
-    int maxSegments = 100;
-    [SerializeField]
-    float segmentLength = 0.1f;
     float[] capSize = { 2, 2, 2 };
-    [SerializeField]
-    Transform hairObject;
-    #endregion
 
-    private void Start()
+    public void PrepareCollision(int maxSegments, float segmentLength, float[] capSizes, Transform hairObject, SkinnedMeshRenderer skinnedMesh, ComputeShader collisionShader, bool debugMode, float minSphereSize)
     {
-        PrepareCollision();
-        CalculateCollisions();
-        //LogData();
-    }
-
-    private void FixedUpdate()
-    {
-        //CalculateCollisions();
-    }
-
-    public void PrepareCollision()
-    {
+        this.collisionsShader = collisionShader;
+        this.skinnedMeshRenderer =skinnedMesh;
+        this.capSize = capSizes;
         boneCount = skinnedMeshRenderer.bones.Length;
         prepareCollisionDataKernel = collisionsShader.FindKernel("PreprocessSDF");
+        clearMaskKernel = collisionsShader.FindKernel("ClearMask");
+        calcCollisionKernel = collisionsShader.FindKernel("CalcCollisions");
         sdfData = new CharacterSDF(boneCount, skinnedMeshRenderer, minSphereSize, debugMode);
         boneCount = sdfData.SDFOffset.Count;
         debugBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, boneCount*2, sizeof(float) * 4);
@@ -87,20 +68,34 @@ public class CollisionController : MonoBehaviour
         bonePositionBuffer = sdfData.BonePositionsBuffer;
     }
 
-    public async Task CalculateCollisions()
+    public async Task CalculateCollisions(GraphicsBuffer pointsData, int pointsCount)
     {
         sdfData.UpdateSDFPositions();
         grid.SetDataToShader();
+        collisionsShader.SetInt("_sdfCount", boneCount);
+        collisionsShader.SetInt("_pointCount", pointsCount);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfRottationsBuffer", sdfRotationsBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfOffsetesBuffer", sdfOffsetesBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfParametersBuffer", sdfParametersBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_originalBonesRotation", originalBonesRotation);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_bonePositionBuffer", bonePositionBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_boneRotationBuffer", boneRotationBuffer);
-        collisionsShader.SetBuffer(prepareCollisionDataKernel, "_DebugBuffer", debugBuffer);
-        collisionsShader.SetInt("_sdfCount", boneCount);
-
+        //collisionsShader.SetBuffer(prepareCollisionDataKernel, "_DebugBuffer", debugBuffer);
         collisionsShader.Dispatch(prepareCollisionDataKernel, Mathf.CeilToInt(sdfCount / 32f), 1, 1);
+
+        collisionsShader.SetBuffer(calcCollisionKernel, "_sdfRottationsBuffer", sdfRotationsBuffer);
+        collisionsShader.SetBuffer(calcCollisionKernel, "_sdfOffsetesBuffer", sdfOffsetesBuffer);
+        collisionsShader.SetBuffer(calcCollisionKernel, "_sdfParametersBuffer", sdfParametersBuffer);
+        collisionsShader.SetBuffer(calcCollisionKernel, "_originalBonesRotation", originalBonesRotation);
+        collisionsShader.SetBuffer(calcCollisionKernel, "_bonePositionBuffer", bonePositionBuffer);
+        collisionsShader.SetBuffer(calcCollisionKernel, "_boneRotationBuffer", boneRotationBuffer);
+        collisionsShader.SetBuffer(calcCollisionKernel, "_MaskGrid", grid.GridBuffer);
+        collisionsShader.SetBuffer(calcCollisionKernel, "_PointData", pointsData);
+        collisionsShader.Dispatch(calcCollisionKernel, Mathf.CeilToInt(pointsCount / 32f), 1, 1);
+
+        grid.SetDataToClear();
+        collisionsShader.Dispatch(clearMaskKernel, Mathf.CeilToInt(Mathf.Pow(grid.Size,3) / 32f), 1, 1);
+
         for (int i = 0; i < sdfCount; i++)
         {
             sdfData.MoveSDF(i);
@@ -133,12 +128,12 @@ public class CollisionController : MonoBehaviour
             for (int j = 0; j < itemSize; j++)
             {
 
-                logString += $"{Convert.ToString(data[i+j], 2)}, ";
-                haveOne = haveOne || data[i+j] > 0;//idk something is not working here
+                //logString += $"{Convert.ToString(data[i + j], 2)}, ";
+                haveOne = haveOne || data[i + j] > 0;//idk something is not working here
             }
 
             int index = i/itemSize;
-            Debug.Log(logString);
+            //Debug.Log(logString);
             int x = index % grid.Size;
             int y = ((index-x)/grid.Size)%grid.Size;
             int z = ((index-x - (y*grid.Size))/(grid.Size*grid.Size));

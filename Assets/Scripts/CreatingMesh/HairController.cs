@@ -3,10 +3,19 @@ using Unity.Mathematics;
 
 public class HairController : MonoBehaviour
 {
+    public int iterationCount;
+
+    //TO DO get this automatically
     [SerializeField]
     ComputeShader strandMeshBuilder;
     [SerializeField]
     ComputeShader strandPositionShader;
+    [SerializeField]
+    ComputeShader collisionShader;
+    [SerializeField]
+    SkinnedMeshRenderer meshRenderer;
+
+
     [SerializeField]
     int segments;
     [SerializeField]
@@ -37,7 +46,6 @@ public class HairController : MonoBehaviour
     [Header("Cap settings")]
     [SerializeField]
     int lines = 4;
-    readonly int strandsInLine;
     [SerializeField]
     float capHeight = 2.0f;
     [SerializeField]
@@ -46,6 +54,9 @@ public class HairController : MonoBehaviour
     float zRandRange = 1.0f;
     [SerializeField]
     float xRandRange = 1.0f;
+
+    [Header("Collision settings")]
+    float minSphereSize = 0;
 
     int verticesKernelId;
     int indicesKernelId;
@@ -57,8 +68,6 @@ public class HairController : MonoBehaviour
     [SerializeField]
     Material hairMat;
 
-    bool rebuild = false;
-
     GraphicsBuffer cmdBuffer;
     GraphicsBuffer.IndirectDrawArgs[] cmdArgsBuffer;
     const int COMMAND_COUNT = 1;
@@ -68,17 +77,17 @@ public class HairController : MonoBehaviour
     #region Points buffers
     ComputeBuffer pointsPositionData;
     ComputeBuffer positions;
-    ComputeBuffer segmentsQuaternions;//new
-    ComputeBuffer angularV;//new
+    ComputeBuffer segmentsQuaternions;
+    ComputeBuffer angularV;
     ComputeBuffer invertedMasses;
-    ComputeBuffer invertedIntertias;//new
-    ComputeBuffer predictedQuaternions; //new
+    ComputeBuffer invertedIntertias;
+    ComputeBuffer predictedQuaternions;
+    ComputeBuffer debugBuffer;
     #endregion
 
     int startPositionKernelLinesId;
-    //int positionKernelId;
 
-    int[] pbdKernels = new int[3];
+    int[] pbdKernels = new int[3];//0-prediction, 1-constraints, 2-post constraints
     int addPointKernelId;
 
     #region position calculation
@@ -89,10 +98,17 @@ public class HairController : MonoBehaviour
     Quaternion lastRotation = Quaternion.identity;
     #endregion
 
+    #region Collision calculations
+    [SerializeField]//only for debugging
+    CollisionController collisionController;
+    
+    #endregion
+
     private void Start()
     {
         //previousSegments = segments;
         PrepareStructures();
+        collisionController.PrepareCollision(maxSegments, strandLength, new float[] {capRadius, capHeight, capRadius}, this.transform, meshRenderer, collisionShader, false, minSphereSize);
     }
 
     private void Update()
@@ -154,8 +170,10 @@ public class HairController : MonoBehaviour
         invertedIntertias = new ComputeBuffer(strandCount * maxSegments, sizeof(float));
         predictedQuaternions = new ComputeBuffer(strandCount * maxSegments, sizeof(float) * 4);
 
+        debugBuffer = new ComputeBuffer(400, sizeof(float) * 4);
+
         strandPositionShader.SetFloat("_TimeStep", Time.fixedDeltaTime);
-        strandPositionShader.SetFloat("_IterationCount", 5);
+        strandPositionShader.SetFloat("_IterationCount", iterationCount);
         strandPositionShader.SetFloat("_VelocityDumping", velocityDumping);
 
         SetStartBuffer();
@@ -187,6 +205,7 @@ public class HairController : MonoBehaviour
             strandPositionShader.SetBuffer(kernel, "_AngularVelocities", angularV);
             strandPositionShader.SetBuffer(kernel, "_PredictedQuaternions", predictedQuaternions);
             strandPositionShader.SetBuffer(kernel, "_InvertedInterias", invertedIntertias);
+            strandPositionShader.SetBuffer(kernel, "_DebugBuffer", debugBuffer);
         }
         //strandPositionShader.SetBuffer(positionKernelId, "_PointData", pointsPositionData);
         //strandPositionShader.SetBuffer(positionKernelId, "_PointsPositions", positions);
@@ -262,7 +281,6 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetInts("_Segments", segments);
         strandPositionShader.SetInts("_Strands", strandCount);
         
-        rebuild = true;
         strandMeshBuilder.SetInt("_Segments", segments);
         strandMeshBuilder.SetFloat("_BaseSize", strandRadius);
         strandMeshBuilder.SetInt("_verticesCount", vertexCount);
@@ -332,9 +350,13 @@ public class HairController : MonoBehaviour
                                                     (transform.rotation * Quaternion.Inverse(lastRotation)).w);
         strandPositionShader.SetVector("_CapRotationDelta", capRotationDelta);
         SetSimulationsBuffer();
-        foreach(int kernel in pbdKernels)
+        for (int i = 0; i < 1; i++)
         {
-            strandPositionShader.Dispatch(kernel, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+            foreach (int kernel in pbdKernels)
+            {
+                strandPositionShader.Dispatch(kernel, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+            }
+            //ShowResults<float4>(debugBuffer);
         }
         //strandPositionShader.Dispatch(positionKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
 

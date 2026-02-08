@@ -25,7 +25,7 @@ public class CollisionGrid
         this.kernelId = kernelId;
         this.cellSize = cellSize;
 
-        size = Mathf.FloorToInt((Mathf.Max(capSizes) + (maxSegments * segmentLength))/cellSize);
+        size = Mathf.CeilToInt((Mathf.Max(capSizes) + (maxSegments * segmentLength))/cellSize);
         this.cellSize = ((Mathf.Max(capSizes) + (maxSegments * segmentLength)) / size);
         Debug.Log($"size {size}, cell size, {cellSize}");
         gridBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, size * size * size, 8);//support max 64 SDFs
@@ -47,5 +47,10 @@ public class CollisionGrid
         Debug.Log(origin);
         sdfCollisionShader.SetVector("_gridOrigin", new Vector4(origin.x, origin.y, origin.z , 0));
         sdfCollisionShader.SetFloat("_cellSize", cellSize);
+    }
+
+    public void SetDataToClear()
+    {
+        sdfCollisionShader.SetBuffer(kernelId, "_MaskGrid", gridBuffer);
     }
 }
