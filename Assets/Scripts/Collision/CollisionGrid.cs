@@ -51,4 +51,9 @@ public class CollisionGrid
     {
         sdfCollisionShader.SetBuffer(kernelId, "_MaskGrid", gridBuffer);
     }
+
+    public void ClearBuffer()
+    {
+        gridBuffer.Dispose();
+    }
 }

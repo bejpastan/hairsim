@@ -545,16 +545,16 @@ MonoBehaviour:
   collisionShader: {fileID: 7200000, guid: bea9e039fe4073244a32fbb2ae2076ea, type: 3}
   meshRenderer: {fileID: 1356183232}
   segments: 10
-  maxSegments: 20
-  strandRadius: 0.01
-  strandCount: 4
+  maxSegments: 40
+  strandRadius: 0.1
+  strandCount: 20
   velocityDumping: 0.98
   stiffness: 1
   strandLength: 0.05
   bendStiffness: 1
-  lines: 2
-  capHeight: 0.25
-  capRadius: 0.1
+  lines: 4
+  capHeight: 0.15
+  capRadius: 0.15
   zRandRange: 0
   xRandRange: 0
   minSphereSize: 0.1
@@ -569,7 +569,7 @@ Transform:
   m_GameObject: {fileID: 1485077513}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.884, z: 0}
+  m_LocalPosition: {x: 0, y: 8.08, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

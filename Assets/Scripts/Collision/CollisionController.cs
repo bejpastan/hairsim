@@ -68,12 +68,16 @@ public class CollisionController : MonoBehaviour
         bonePositionBuffer = sdfData.BonePositionsBuffer;
     }
 
-    public void CalculateCollisions(GraphicsBuffer pointsData, int pointsCount)
+    public void CalculateCollisions(GraphicsBuffer pointsData, int pointsCount, float strandRadius, int strandCount)
     {
         sdfData.UpdateSDFPositions();
         grid.SetDataToShader();
         collisionsShader.SetInt("_sdfCount", boneCount);
         collisionsShader.SetInt("_pointCount", pointsCount);
+        collisionsShader.SetInt("_strands", strandCount);
+        collisionsShader.SetFloat("_strandRadius", strandRadius);
+        
+            
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfRottationsBuffer", sdfRotationsBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfOffsetesBuffer", sdfOffsetesBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfParametersBuffer", sdfParametersBuffer);
@@ -104,6 +108,18 @@ public class CollisionController : MonoBehaviour
         //LogData<Vector3>(pointsData);
         collisionsShader.SetBuffer(clearMaskKernel, "_MaskGrid", grid.GridBuffer);
         collisionsShader.Dispatch(clearMaskKernel, Mathf.CeilToInt(Mathf.Pow(grid.Size, 3) / 32f), 1, 1);
+    }
+
+    public void ClearBuffers()
+    {
+        grid.ClearBuffer();
+        sdfRotationsBuffer.Dispose();
+        sdfParametersBuffer.Dispose();
+        sdfOffsetesBuffer.Dispose();
+        originalBonesRotation.Dispose();
+        bonePositionBuffer.Dispose();
+        boneRotationBuffer.Dispose();
+        debugBuffer.Dispose();
     }
 
     /// <summary>
@@ -141,7 +157,7 @@ public class CollisionController : MonoBehaviour
             Vector3 translation = new Vector3(x*grid.CellSize, y*grid.CellSize, z*grid.CellSize);
             if(haveOne)
             {
-                Debug.Log(logString);
+                //Debug.Log(logString);
                 Drawing.DrawCube(grid.GridOrigin + translation, grid.CellSize * Vector3.one, Color.red, 0.016f);
             }
             else

@@ -134,11 +134,34 @@ public class HairController : MonoBehaviour
         }
     }
 
+    private void OnDestroy()
+    {
+        ClearBuffers();
+    }
+
+
+
     void FixedUpdate()
     {
         CalcPositions();
         matProps.SetBuffer("_PointsPositions", positions);
         matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
+    }
+
+    private void ClearBuffers()
+    {
+        collisionController.ClearBuffers();
+        pointsPositionData.Dispose();
+        positions.Dispose();
+        segmentsQuaternions.Dispose();
+        angularV.Dispose();
+        invertedMasses.Dispose();
+        invertedIntertias.Dispose();
+        predictedQuaternions.Dispose();
+        debugBuffer.Dispose();
+        cmdBuffer.Dispose();
+        vertexBuffer.Dispose();
+        indexBuffer.Dispose();
     }
 
     /// <summary>
@@ -311,7 +334,7 @@ public class HairController : MonoBehaviour
 
         cmdBuffer.SetData(cmdArgsBuffer);
         previousSegments = segments;
-        ReadGraphicBuffer<uint>(indexBuffer);
+        //ReadGraphicBuffer<uint>(indexBuffer);
     }
 
     private void ShowResults<T>(GraphicsBuffer buffer)
@@ -353,7 +376,7 @@ public class HairController : MonoBehaviour
         SetSimulationsBuffer();
         strandPositionShader.Dispatch(pbdKernels[0], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
         strandPositionShader.Dispatch(pbdKernels[1], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
-        collisionController.CalculateCollisions(pointsPositionData, pointsPositionData.count/2);
+        collisionController.CalculateCollisions(pointsPositionData, pointsPositionData.count/2, strandRadius, strandCount);
         strandPositionShader.Dispatch(pbdKernels[2], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
 
         lastPosition = transform.position;

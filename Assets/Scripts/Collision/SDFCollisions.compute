@@ -25,6 +25,8 @@ float _cellSize;
 int3 _gridSizes;
 
 
+int _strands;
+float _strandRadius;
 int _pointCount;
 RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0
 
@@ -195,15 +197,16 @@ float3 RequiredChange(int sdfId, float3 pointPosition)
 [numthreads(32,1,1)]//id's of points
 void CalcCollisions(uint3 id : SV_DispatchThreadID)
 {
-    if(id.x<_pointCount)
+    if (id.x < (_pointCount))
     {
-        int cellId = ToCell(_PointData[id.x*2]);
+        int index = id.x * 2;
+        int cellId = ToCell(_PointData[index]);
         uint mask = _MaskGrid[cellId].x;
         int sdfId = firstbithigh(mask);
         while(sdfId>=0)
         {
-            float3 changeVector = RequiredChange(sdfId, _PointData[id.x * 2]);
-            _PointData[id.x * 2] += changeVector;
+            float3 changeVector = RequiredChange(sdfId, _PointData[index]);
+            _PointData[index] += changeVector;
             mask &= ~(1u << sdfId);
             sdfId = firstbithigh(mask);
         }
@@ -211,8 +214,8 @@ void CalcCollisions(uint3 id : SV_DispatchThreadID)
         sdfId = firstbithigh(mask);
         while (sdfId >= 0)
         {
-            float3 changeVector = RequiredChange(sdfId+32, _PointData[id.x * 2]);
-            _PointData[id.x * 2] += changeVector;
+            float3 changeVector = RequiredChange(sdfId + 32, _PointData[index]);
+            _PointData[index] += changeVector;
             mask &= ~(1u << sdfId);
             sdfId = firstbithigh(mask);
         }
