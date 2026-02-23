@@ -28,7 +28,9 @@ int3 _gridSizes;
 int _strands;
 float _strandRadius;
 int _pointCount;
+float _segmentLength;
 RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0
+float _collisionStiffness;
 
 float4x4 QuaternionToMatrix(float4 q)
 {
@@ -175,7 +177,7 @@ void ClearMask(uint3 id : SV_DispatchThreadID)
     }
 }
 
-float3 RequiredChange(int sdfId, float3 pointPosition)
+float3 RequiredChange(int sdfId, float3 pointPosition, float3 pointDir)
 {
     float4 newRot = HamiltonProduct(_boneRotationBuffer[sdfId], _sdfRottationsBuffer[sdfId]); //new sdf rotation
     float4 rotationChange = HamiltonProduct(_boneRotationBuffer[sdfId], ConjugateQuaternion(_originalBonesRotation[sdfId])); //change of rotation from original to new
@@ -183,11 +185,24 @@ float3 RequiredChange(int sdfId, float3 pointPosition)
     newPos = newPos + _bonePositionBuffer[sdfId];
     //rotate sdf and point to be in world space base
     pointPosition = pointPosition - newPos;
+    
     pointPosition = RotateByQuaternion(pointPosition, ConjugateQuaternion(newRot)); //this move point to sdf local space, but with world rotation, so we can use sdf parameters
     //point position in sdf origin
     
+    
+   //bacuse the capsule have 2 radis the same, I could simplify this to ellipse
+    float cosine = dot(pointPosition, pointDir) / (length(pointPosition) * length(pointDir));//calcualting cosine between segment direction(longer radiuse) and direction between centers
+    float capsuleDist = sqrt(1 - pow(cosine, 2)) * length(_segmentLength) + cosine * length(_strandRadius);//distance inside segment capsule in direction to object capsule
+    
     float3 dir = normalize(pointPosition);
-    float dist = 1 - length(pointPosition/_sdfParametersBuffer[sdfId]);
+    float dist = 1 - length(pointPosition / _sdfParametersBuffer[sdfId]) - capsuleDist; //ratio of how far in each axis point is(this scale me from ellipsoid to sphere)
+    
+    //EXPERIMENT
+    
+    pointDir = RotateByQuaternion(pointDir, ConjugateQuaternion(newRot));
+    
+    //END EXPERIMENT
+    
     dist = clamp(dist, 0, 1);
     dir *= _sdfParametersBuffer[sdfId];
     dir = RotateByQuaternion(dir, newRot);
@@ -197,16 +212,22 @@ float3 RequiredChange(int sdfId, float3 pointPosition)
 [numthreads(32,1,1)]//id's of points
 void CalcCollisions(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < (_pointCount))
+    //skip first point in strand in position update here
+    if (id.x < (_pointCount - (2 * _strands)))
     {
-        int index = id.x * 2;
+        int index = (id.x) * 2;
         int cellId = ToCell(_PointData[index]);
         uint mask = _MaskGrid[cellId].x;
         int sdfId = firstbithigh(mask);
         while(sdfId>=0)
         {
-            float3 changeVector = RequiredChange(sdfId, _PointData[index]);
-            _PointData[index] += changeVector;
+            float3 dir = _PointData[index + _strands*2] - _PointData[index];
+            float3 changeVector = RequiredChange(sdfId, _PointData[index], dir) * _collisionStiffness;
+            if (index >= 2 * _strands)
+            {
+                _PointData[index] += changeVector;
+            }
+            _PointData[index + _strands * 2] += changeVector;
             mask &= ~(1u << sdfId);
             sdfId = firstbithigh(mask);
         }
@@ -214,8 +235,13 @@ void CalcCollisions(uint3 id : SV_DispatchThreadID)
         sdfId = firstbithigh(mask);
         while (sdfId >= 0)
         {
-            float3 changeVector = RequiredChange(sdfId + 32, _PointData[index]);
-            _PointData[index] += changeVector;
+            float3 dir = _PointData[index + _strands * 2] - _PointData[index];
+            float3 changeVector = RequiredChange(sdfId + 32, _PointData[index], dir) * _collisionStiffness;
+            if (index >= 2 * _strands)
+            {
+                _PointData[index] += changeVector;
+            }
+            _PointData[index + _strands * 2] += changeVector;
             mask &= ~(1u << sdfId);
             sdfId = firstbithigh(mask);
         }

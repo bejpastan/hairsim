@@ -68,7 +68,7 @@ public class CollisionController : MonoBehaviour
         bonePositionBuffer = sdfData.BonePositionsBuffer;
     }
 
-    public void CalculateCollisions(GraphicsBuffer pointsData, int pointsCount, float strandRadius, int strandCount)
+    public void CalculateCollisions(GraphicsBuffer pointsData, int pointsCount, float strandRadius, int strandCount, float collisionStiffnes)
     {
         sdfData.UpdateSDFPositions();
         grid.SetDataToShader();
@@ -76,8 +76,9 @@ public class CollisionController : MonoBehaviour
         collisionsShader.SetInt("_pointCount", pointsCount);
         collisionsShader.SetInt("_strands", strandCount);
         collisionsShader.SetFloat("_strandRadius", strandRadius);
-        
-            
+        collisionsShader.SetFloat("_collisionStiffness", collisionStiffnes);
+
+
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfRottationsBuffer", sdfRotationsBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfOffsetesBuffer", sdfOffsetesBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfParametersBuffer", sdfParametersBuffer);
@@ -100,11 +101,11 @@ public class CollisionController : MonoBehaviour
 
         grid.SetDataToClear();
 
-        for (int i = 0; i < sdfCount; i++)
-        {
-            sdfData.MoveSDF(i);
-        }
-        LogBinary(grid.GridBuffer, 8);
+        //for (int i = 0; i < sdfCount; i++)
+        //{
+        //    sdfData.MoveSDF(i);
+        //}
+        //LogBinary(grid.GridBuffer, 8);
         //LogData<Vector3>(pointsData);
         collisionsShader.SetBuffer(clearMaskKernel, "_MaskGrid", grid.GridBuffer);
         collisionsShader.Dispatch(clearMaskKernel, Mathf.CeilToInt(Mathf.Pow(grid.Size, 3) / 32f), 1, 1);

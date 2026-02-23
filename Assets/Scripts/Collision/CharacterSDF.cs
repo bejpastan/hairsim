@@ -319,7 +319,7 @@ public class CharacterSDF
         Vector3 newTranslation = rotationChange * sdfOffset[boneId];
         //Vector3 newPos2 = bonePositions[boneId] + newTranslation;
         Vector3 newPos = boneTransform.position + newTranslation;
-        Drawing.DrawSphereoid(newPos, sdfParameters[boneId] * 2f, Color.red, elementRotation, 10f);
+        Drawing.DrawSphereoid(newPos, sdfParameters[boneId] * 2f, Color.green, elementRotation, 0.016f);
         maxvalue = new Vector3(Mathf.Max(maxvalue.x, newPos.x), Mathf.Max(maxvalue.y, newPos.y), Mathf.Max(maxvalue.z, newPos.z));
         minvalue = new Vector3(Mathf.Min(minvalue.x, newPos.x), Mathf.Min(minvalue.y, newPos.y), Mathf.Min(minvalue.z, newPos.z));
         //Debug.LogWarning($"max value {maxvalue.x}, {maxvalue.y}, {maxvalue.z} \n min value {minvalue.x}, {minvalue.y}, {minvalue.z}");

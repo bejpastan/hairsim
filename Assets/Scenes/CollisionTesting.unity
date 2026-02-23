@@ -539,20 +539,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55e32ba648a2d9b4cb379d2b3f528f0f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  iterationCount: 5
+  iterationCount: 20
   strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
   strandPositionShader: {fileID: 7200000, guid: 99b32450f20e6ea47acf252919ac62a6, type: 3}
   collisionShader: {fileID: 7200000, guid: bea9e039fe4073244a32fbb2ae2076ea, type: 3}
   meshRenderer: {fileID: 1356183232}
-  segments: 10
+  segments: 20
   maxSegments: 40
-  strandRadius: 0.1
-  strandCount: 20
+  strandRadius: 0.05
+  strandCount: 4
   velocityDumping: 0.98
   stiffness: 1
   strandLength: 0.05
   bendStiffness: 1
-  lines: 4
+  lines: 2
   capHeight: 0.15
   capRadius: 0.15
   zRandRange: 0
@@ -569,7 +569,7 @@ Transform:
   m_GameObject: {fileID: 1485077513}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 8.08, z: 0}
+  m_LocalPosition: {x: -0.14, y: 3.225, z: 0.251}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -213,6 +213,7 @@ void CalcConstraints(uint id : SV_DispatchThreadID)
     }
 }
 
+
 [numthreads(64,1,1)]
 void PostConstraints(uint id: SV_DispatchThreadID)
 {

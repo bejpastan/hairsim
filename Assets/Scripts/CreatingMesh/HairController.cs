@@ -3,7 +3,10 @@ using Unity.Mathematics;
 
 public class HairController : MonoBehaviour
 {
-    public int iterationCount;
+    public int iterationCount;//public for testing only
+    public int collisionIterationCount;
+    [Range(0,1)]
+    public float collisionStiffnes;
 
     //TO DO get this automatically
     [SerializeField]
@@ -376,7 +379,10 @@ public class HairController : MonoBehaviour
         SetSimulationsBuffer();
         strandPositionShader.Dispatch(pbdKernels[0], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
         strandPositionShader.Dispatch(pbdKernels[1], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
-        collisionController.CalculateCollisions(pointsPositionData, pointsPositionData.count/2, strandRadius, strandCount);
+        for(int i = 0; i < collisionIterationCount; i++)
+        {
+            collisionController.CalculateCollisions(pointsPositionData, pointsPositionData.count/2, strandRadius, strandCount, collisionStiffnes);
+        }
         strandPositionShader.Dispatch(pbdKernels[2], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
 
         lastPosition = transform.position;
