@@ -1,5 +1,4 @@
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CalcPosition
 #pragma kernel CalcStartPositionLines
 #pragma kernel AddPoint
 
@@ -10,9 +9,7 @@
 #include "../Math/Math.compute"
 
 RWStructuredBuffer<float3> _PointsPositions;
-RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0
-
-//RWStructuredBuffer<float4> _RingQuaternions; 
+RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0 
 
 RWStructuredBuffer<float4> _SegmentsQuaternions;
 RWStructuredBuffer<float4> _PredictedQuaternions;
@@ -21,6 +18,8 @@ RWStructuredBuffer<float3> _AngularVelocities;
 
 RWStructuredBuffer<float> _InvertedMasses;
 RWStructuredBuffer<float> _InvertedInterias;
+
+RWStructuredBuffer<float4> _CollisionConstraint;
 
 int _Segments;
 int _Strands;
@@ -124,7 +123,7 @@ void CalcStartPositionLines(uint strandIndex)
     _InvertedInterias[strandIndex] = 0;
     
     //calc position of other points in this strand
-    for (uint ring = 1; ring < _Segments + 1; ring++)
+    for (uint ring = 1; ring < (uint) _Segments + 1; ring++)
     {
         uint index = strandIndex + _Strands * ring;
         
@@ -135,7 +134,7 @@ void CalcStartPositionLines(uint strandIndex)
         _InvertedMasses[index] = 1;
     }
     
-    for (uint segment = 1; segment < _Segments; segment++)
+    for (uint segment = 1; segment < (uint) _Segments; segment++)
     {
         uint index = strandIndex + _Strands * segment;
         _InvertedInterias[index] = 1;
@@ -145,9 +144,9 @@ void CalcStartPositionLines(uint strandIndex)
 
 
 [numthreads(64, 1, 1)]
-void Predictions(uint id : SV_DispatchThreadID)
+void Predictions(uint3 id : SV_DispatchThreadID)
 {
-    if( id.x <_Strands)
+    if (id.x < (uint) _Strands)
     {
         uint baseIndex = id.x;
         uint strandIndex = id.x;
@@ -187,37 +186,44 @@ void Predictions(uint id : SV_DispatchThreadID)
 }
 
 [numthreads(64, 1, 1)]
-void CalcConstraints(uint id : SV_DispatchThreadID)
+void CalcConstraints(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < _Strands)
+    if (id.x < (uint) _Strands)
     {
         uint baseIndex = id.x;
         uint strandIndex = id.x;
 
-        for(int i = 0; i < _IterationCount; i++)
-        {
-        //distance constraint
+            //distance constraint
             for (int ring = 0; ring < _Segments; ring++)
             {
                 baseIndex = strandIndex + (_Strands * ring);
                 CalcDistantConstraint_v2(_PointData[2 * (baseIndex)], _PointData[2 * (baseIndex + _Strands)], _PredictedQuaternions[baseIndex], baseIndex);
             }
-        }
-        //bending constraint
-        for (int segment = 0; segment < _Segments - 1; segment++)
-        {
-            baseIndex = strandIndex + (_Strands * segment);
-            CalcBendConstraint_v2(_PredictedQuaternions[baseIndex], _PredictedQuaternions[baseIndex + _Strands], baseIndex);
-        }
+            
+            //bending constraint
+            for (int segment = 0; segment < _Segments - 1; segment++)
+            {
+                baseIndex = strandIndex + (_Strands * segment);
+                CalcBendConstraint_v2(_PredictedQuaternions[baseIndex], _PredictedQuaternions[baseIndex + _Strands], baseIndex);
+            }
+                       
+            ////collision contraint
+            //for (int segment = 0; segment < _Segments; segment++)
+            //{
+            //    baseIndex = strandIndex + (_Strands * segment) + _Strands;
+            //    float3 correction = _CollisionConstraint[baseIndex * 2].xyz - _PointData[2 * baseIndex];
+            //    float3 normal = _CollisionConstraint[baseIndex * 2 + 1].xyz;
+            //    correction = normal * max(dot(correction, normal), 0);
+            //    _PointData[2 * baseIndex] += correction;
+            //}
    
     }
 }
 
-
 [numthreads(64,1,1)]
-void PostConstraints(uint id: SV_DispatchThreadID)
+void PostConstraints(uint3 id: SV_DispatchThreadID)
 {
-    if (id.x < _Strands)
+    if (id.x < (uint)_Strands)
     {
         uint baseIndex = id.x;
         uint strandIndex = id.x;
@@ -240,11 +246,10 @@ void PostConstraints(uint id: SV_DispatchThreadID)
     }
 }
 
-
 [numthreads(64, 1, 1)]
 void CalcStartPositionLines(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < _Strands)
+    if (id.x < (uint)_Strands)
     {
         CalcStartPositionLines(id.x);
     }
@@ -253,7 +258,7 @@ void CalcStartPositionLines(uint3 id : SV_DispatchThreadID)
 [numthreads(32, 1, 1)]
 void AddPoint(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < _Strands)
+    if (id.x < (uint) _Strands)
     {
         uint index = id.x + (_Segments * _Strands);        
         float3 direction = RotateByQuaternion(float3(0, 1, 0), _SegmentsQuaternions[index - _Strands]);

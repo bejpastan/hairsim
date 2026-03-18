@@ -302,7 +302,6 @@ public class CharacterSDF
         return newPoint;
     }
 
-
     Vector3 maxvalue = Vector3.zero;
     Vector3 minvalue = Vector3.zero * -1000;
     //only for debugging purposes
