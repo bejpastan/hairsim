@@ -37,6 +37,11 @@ int _StrandsPerLine;
 float _XPosRand;
 float _ZPosRand;
 
+float _LeftCut;
+float _RightCut;
+float _BackCut;
+float _FrontCut;
+
 //constraint settings
 float _TimeStep;
 float _SegmentLength;
@@ -94,30 +99,59 @@ void CalcBendConstraint_v2(float4 q1, float4 q2, uint segmentIndex)
     _PredictedQuaternions[segmentIndex + _Strands] = normalize(_PredictedQuaternions[segmentIndex + _Strands] - (q2Change * _BendStiffness));
 }
 
+float3 CalcStartPosv2(uint strandIndex)
+{
+    float lineIndex = floor(strandIndex / (_StrandsPerLine));//from 0-1
+    float atLineIndex = strandIndex - lineIndex * _StrandsPerLine; //from 0
+    lineIndex += 0.5f;
+    atLineIndex += 0.5f;
+    
+    
+    float xLeft = clamp(_CapRadius - _LeftCut, -_CapRadius, _CapRadius); //distance from min x, to center of cap, subtract xLeft cut
+    float xRight = clamp(_CapRadius - _RightCut, -_CapRadius, _CapRadius);
+    float xPos = ((lineIndex / _Lines) * (xLeft + xRight)) - xLeft + RandFloat(strandIndex, 1, _XPosRand);
+    xPos = clamp(xPos, -xLeft, xRight);
+    
+    float zLocalRadius = sqrt(pow(_CapRadius,2) - pow(xPos, 2));
+    
+    float zBack = min(zLocalRadius, clamp(_CapRadius - _BackCut, -_CapRadius, _CapRadius)); //in future I need to subtract here back offset
+    float zFront = min(zLocalRadius, clamp(_CapRadius - _FrontCut, -_CapRadius, _CapRadius)); //in future I need to subtract here back offset
+    float zPos = ((atLineIndex / _StrandsPerLine) * (zBack + zFront)) - zBack + RandFloat(strandIndex, 1, _ZPosRand);
+    zPos = clamp(zPos, -zBack, zFront);
+    
+    float yPos = sqrt(pow(_CapRadius, 2) - pow(xPos, 2) - pow(zPos, 2)) * (_CapHeight / _CapRadius);
+    
+    return float3(xPos, yPos, zPos);
+}
+
 //calc position of startNode of each strand on base cap
 void CalcStartPositionLines(uint strandIndex)
 {
-    //in future add here left/right/top/back range
-    float lineIndex = floor(strandIndex / _StrandsPerLine);
-    float atLineIndex = strandIndex - lineIndex * _StrandsPerLine;
-    atLineIndex = (float) atLineIndex - ((_StrandsPerLine - 1) / 2.0f);
+    ////in future add here left/right/top/back range
+    //float lineIndex = floor(strandIndex / _StrandsPerLine); //from 0
+    //float atLineIndex = strandIndex - lineIndex * _StrandsPerLine; //from 0
+    //atLineIndex = atLineIndex - ((_StrandsPerLine - 1) / 2.0f); //I don't understand this part tbh
     
-    float xPos = ((lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines))) + RandFloat(strandIndex, 1, _XPosRand);
-    //clamping xPos to be inside cap
-    xPos = clamp(xPos, -_CapRadius + 0.00001f, _CapRadius - 0.00001f);
-    float zChord = sqrt(-pow(xPos, 2.0) + pow(_CapRadius, 2.0f)); //in given xPosition
-    float zPos = (2 * zChord * atLineIndex / _StrandsPerLine) + RandFloat(strandIndex, 1, _ZPosRand);
-    //calmping zPos to be inside cap
-    zPos = clamp(zPos, -_CapRadius + 0.00001f, _CapRadius - 0.00001f);
+    //float xPos = ((lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines))) + RandFloat(strandIndex, 1, _XPosRand);
+    ////clamping xPos to be inside cap
+    //xPos = clamp(xPos, -_CapRadius + 0.0000001f, _CapRadius - 0.0000001f);
+    //float zChord = sqrt(-pow(xPos, 2.0) + pow(_CapRadius, 2.0f)); //in given xPosition
+    //float zPos = (2 * zChord * atLineIndex / _StrandsPerLine) + RandFloat(strandIndex, 1, _ZPosRand);
+    ////calmping zPos to be inside cap
+    //zPos = clamp(zPos, -_CapRadius + 0.0000001f, _CapRadius - 0.0000001f);
     
-    float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
+    ////calc yPos from x and z
+    //float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
     
-    _PointsPositions[strandIndex] = float3(xPos, yPos, zPos) + _CapPosition;
+    float3 startPos = CalcStartPosv2(strandIndex);
     
-    float cos = dot(normalize(float3(xPos, yPos, zPos)), float3(0, 1, 0));
+    
+    _PointsPositions[strandIndex] = startPos + _CapPosition;
+    
+    float cos = dot(normalize(startPos), float3(0, 1, 0));
     float sin = sqrt(1 - cos) / 2;
     cos = sqrt((1 + cos) / 2.0f);
-    float3 axis = normalize(cross(float3(0, 1, 0), normalize(float3(xPos, yPos, zPos))));
+    float3 axis = normalize(cross(float3(0, 1, 0), normalize(startPos)));
     _SegmentsQuaternions[strandIndex] = normalize(float4(sin * axis, cos));
     _InvertedMasses[strandIndex] = 0;
     _InvertedInterias[strandIndex] = 0;

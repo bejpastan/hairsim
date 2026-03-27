@@ -3,7 +3,7 @@ using Unity.Mathematics;
 
 public class HairController : MonoBehaviour
 {
-    public int iterationCount;//public for testing only
+    const int ITERATION_COUNT = 10;//public for testing only
     [Range(0,1)]
     public float collisionStiffnes;
 
@@ -30,9 +30,7 @@ public class HairController : MonoBehaviour
     int strandCount = 20;// add validating to be multiple of lines
 
     [Header("PDB")]
-    [SerializeField]
-    [Range(0, 1)]
-    float velocityDumping = 0.98f;
+    const float VELOCITY_DUMPING = 0.98f;
     [Header("Distance Constraints")]
     [SerializeField]
     [Range(0,1)]
@@ -56,6 +54,15 @@ public class HairController : MonoBehaviour
     float zRandRange = 1.0f;
     [SerializeField]
     float xRandRange = 1.0f;
+
+    [SerializeField]
+    float leftCut = 0;
+    [SerializeField]
+    float rightCut = 0;
+    [SerializeField]
+    float backCut = 0;
+    [SerializeField]
+    float frontCut = 0;
 
     [Header("Collision settings")]
     [SerializeField]
@@ -107,8 +114,25 @@ public class HairController : MonoBehaviour
     
     #endregion
 
+    private void ValidateVars()
+    {
+        if(leftCut + rightCut >= capRadius*2)
+        {
+            Debug.LogError("sum of left and right cut must be smaller then diameter of cap");
+        }
+        if(backCut + frontCut >= capRadius*2)
+        {
+            Debug.LogError("sum of back and front cut must be smaller then diameter of cap");
+        }
+        if(strandCount % lines != 0)
+        {
+            Debug.LogError("Strand count must be a multiple of lines");
+        }
+    }
+
     private void Start()
     {
+        ValidateVars();
         //previousSegments = segments;
         PrepareStructures();
         collisionController.PrepareCollision(maxSegments, strandLength, new float[] {capRadius, capHeight, capRadius}, this.transform, meshRenderer, collisionShader, false, minSphereSize);
@@ -140,8 +164,6 @@ public class HairController : MonoBehaviour
     {
         ClearBuffers();
     }
-
-
 
     void FixedUpdate()
     {
@@ -200,8 +222,8 @@ public class HairController : MonoBehaviour
         collisionConstraints.SetData(zeroArray);
 
         strandPositionShader.SetFloat("_TimeStep", Time.fixedDeltaTime);
-        strandPositionShader.SetFloat("_IterationCount", iterationCount);
-        strandPositionShader.SetFloat("_VelocityDumping", velocityDumping);
+        strandPositionShader.SetFloat("_IterationCount", ITERATION_COUNT);
+        strandPositionShader.SetFloat("_VelocityDumping", VELOCITY_DUMPING);
 
         SetStartBuffer();
         lastPosition = transform.position;
@@ -219,6 +241,10 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetBuffer(startPositionKernelLinesId, "_InvertedInterias", invertedIntertias);
         strandPositionShader.SetFloat("_ZPosRand", zRandRange);
         strandPositionShader.SetFloat("_XPosRand", xRandRange);
+        strandPositionShader.SetFloat("_LeftCut", leftCut);
+        strandPositionShader.SetFloat("_RightCut", rightCut);
+        strandPositionShader.SetFloat("_BackCut", backCut);
+        strandPositionShader.SetFloat("_FrontCut", frontCut);   
         SetVariables();
     }
     private void SetSimulationsBuffer()
@@ -385,7 +411,7 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetVector("_CapRotationDelta", capRotationDelta);
         SetSimulationsBuffer();
         strandPositionShader.Dispatch(pbdKernels[0], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
-        for (int i = 1; i < iterationCount; i++)
+        for (int i = 1; i < ITERATION_COUNT; i++)
         {
             strandPositionShader.Dispatch(pbdKernels[1], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
             collisionController.CalculateCollisions(pointsPositionData, collisionConstraints, pointsPositionData.count / 2, strandRadius, strandCount, collisionStiffnes);
