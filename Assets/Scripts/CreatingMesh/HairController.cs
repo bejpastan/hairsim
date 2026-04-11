@@ -145,7 +145,7 @@ public class HairController : MonoBehaviour
         {
             Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
         }
-        if (Input.GetKeyDown(KeyCode.DownArrow))
+        if (Input.GetKeyDown(KeyCode.DownArrow))//this is my external logic, ignore this if
         {
             segments = Mathf.Max(0, segments - 1);
             if(segments != 0)
@@ -299,7 +299,7 @@ public class HairController : MonoBehaviour
 
         renderParams = new(hairMat)
         {
-            worldBounds = new Bounds(transform.position, Vector3.one * 100f),
+            worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f),
         };
         #endregion
     }

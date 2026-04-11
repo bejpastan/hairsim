@@ -76,7 +76,7 @@ Shader "Custom/HairShader"
 
             float4 frag (v2f i) : SV_Target
             {
-                return i.color * i.light;
+                return i.color * i.light;//I need to make this more smooth, to have more ligth also on the "dark" side of the strand
             }
             ENDHLSL
         }
