@@ -14,6 +14,7 @@ Shader "Custom/HairShader"
             Tags { "LightMode" = "UniversalForward" }
 
             HLSLPROGRAM
+            #pragma target 4.5 //for AMD GPU support
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -48,12 +49,12 @@ Shader "Custom/HairShader"
             v2f vert (appdata v)
             {
                 v2f o;
-                uint vertexIndex = _Indices[v.vertexID];
+                int vertexIndex = _Indices[v.vertexID];
                 float3 positionOS = _Vertices[vertexIndex];
 
                 int index = v.instanceID + (_Strands * (vertexIndex/4));
 
-                uint first_segment_id = index -((max(index - _Strands + 1, 0) / max(index - _Strands + 1, 1)) * _Strands);
+                int first_segment_id = index -((max(index - _Strands + 1, 0) / max(index - _Strands + 1, 1)) * _Strands);
                 float4 quaternion_1 = _SegmentsQuaternions[first_segment_id];
                 float4 quaternion_2 = _SegmentsQuaternions[index];
                 float4 quaternion = normalize(quaternion_1 + quaternion_2);
