@@ -238,7 +238,7 @@ Transform:
   m_GameObject: {fileID: 585082575}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -3.64}
+  m_LocalPosition: {x: -1.98, y: 1, z: -3.64}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -541,24 +541,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   collisionStiffnes: 0
-  strandMeshBuilder: {fileID: 7200000, guid: fb3ce371b1292044087779e962c30f0f, type: 3}
-  strandPositionShader: {fileID: 7200000, guid: 99b32450f20e6ea47acf252919ac62a6, type: 3}
-  collisionShader: {fileID: 7200000, guid: bea9e039fe4073244a32fbb2ae2076ea, type: 3}
   meshRenderer: {fileID: 1356183232}
-  segments: 10
-  maxSegments: 20
+  segments: 1
   strandRadius: 0.05
-  strandCount: 40
+  strandCount: 4
   stiffness: 1
   strandLength: 0.05
-  bendStiffness: 0.028
-  lines: 8
+  bendStiffness: 1
+  lines: 2
   capHeight: 0.1
-  capRadius: 0.1
+  capRadius: 0.2
   zRandRange: 0
   xRandRange: 0
   leftCut: 0
-  rightCut: 0.15
+  rightCut: 0
   backCut: 0
   frontCut: 0
   minSphereSize: 0.1

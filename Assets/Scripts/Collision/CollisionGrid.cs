@@ -20,13 +20,15 @@ public class CollisionGrid
     public Vector3 GridSize => size * cellSize * Vector3.one;
     public int Size => size;
 
-    public CollisionGrid(int kernelId, float cellSize, int maxSegments, float segmentLength, float[] capSizes, ComputeShader shader, Transform hairObject)
+    public CollisionGrid(int kernelId, float cellSize, float[] capSizes, ComputeShader shader, Transform hairObject, SkinnedMeshRenderer skinnedMesh)
     {
         this.kernelId = kernelId;
         this.cellSize = cellSize;
 
-        size = Mathf.CeilToInt((Mathf.Max(capSizes) + (maxSegments * segmentLength))/cellSize);
-        this.cellSize = ((Mathf.Max(capSizes) + (maxSegments * segmentLength)) / size);
+        float skinnedMeshSize = Mathf.Max(skinnedMesh.bounds.size.x, skinnedMesh.bounds.size.y, skinnedMesh.bounds.size.z);
+
+        size = Mathf.CeilToInt((Mathf.Max(capSizes) + (skinnedMeshSize))/cellSize);
+        this.cellSize = ((Mathf.Max(capSizes) + (skinnedMeshSize)) / size);
         gridBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, size * size * size, 8);//support max 64 SDFs
         gridBuffer.SetData(new uint2[size*size*size]);
         this.hairObject = hairObject;

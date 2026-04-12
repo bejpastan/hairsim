@@ -18,22 +18,22 @@ uint _indicesCount;
 
 void GetIndice(uint index)//index is the quad index
 {
-    int segment = ((int) index) / 4;
-    int vStart = index; //this is first vertex of the quad
-    int vNext = (vStart + 1)%4 + segment * 4; //this neighbor vertix in the quad
+    uint segment = ((uint) index) / 4;
+    uint vStart = index; //this is first vertex of the quad
+    uint vNext = (vStart + 1) % 4 + segment * 4; //this neighbor vertix in the quad
 
-    int v0 = vStart;
-    int v1 = vNext;
-    int v2 = vStart + 4;
-    int v3 = vNext + 4;
+    uint v0 = vStart;
+    uint v1 = vNext;
+    uint v2 = vStart + 4;
+    uint v3 = vNext + 4;
     
-    int offset = index * 6;
-    _Indices[offset] = v1;
-    _Indices[offset + 1] = v2;
-    _Indices[offset + 2] = v0;
-    _Indices[offset + 3] = v3;
-    _Indices[offset + 4] = v2;
-    _Indices[offset + 5] = v1;
+    uint offset = index * 6;
+    _Indices[offset] = (int)v1;
+    _Indices[offset + 1] = (int) v2;
+    _Indices[offset + 2] = (int) v0;
+    _Indices[offset + 3] = (int) v3;
+    _Indices[offset + 4] = (int) v2;
+    _Indices[offset + 5] = (int) v1;
 }
 
 void GetPosition(uint index)

@@ -1,0 +1,27 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ResizeBuffer
+
+ByteAddressBuffer _OldBuffer;
+RWByteAddressBuffer _NewBuffer;
+
+uint _OldBytes;
+uint _NewBytes;
+
+[numthreads(64, 1, 1)]
+void ResizeBuffer(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+
+    if (index >= _NewBytes)
+        return;
+
+    if (index < _OldBytes)
+    {
+        uint value = _OldBuffer.Load(index);
+        _NewBuffer.Store(index, value);
+    }
+    else
+    {
+        _NewBuffer.Store(index, 0);
+    }
+}

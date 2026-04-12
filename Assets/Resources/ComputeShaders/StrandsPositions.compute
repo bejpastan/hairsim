@@ -6,7 +6,7 @@
 #pragma kernel PostConstraints
 #pragma kernel Predictions
 
-#include "../Math/Math.compute"
+#include "Math.compute"
 
 RWStructuredBuffer<float3> _PointsPositions;
 RWStructuredBuffer<float3> _PointData; //velocities +1, predicted positions +0 
@@ -127,24 +127,7 @@ float3 CalcStartPosv2(uint strandIndex)
 //calc position of startNode of each strand on base cap
 void CalcStartPositionLines(uint strandIndex)
 {
-    ////in future add here left/right/top/back range
-    //float lineIndex = floor(strandIndex / _StrandsPerLine); //from 0
-    //float atLineIndex = strandIndex - lineIndex * _StrandsPerLine; //from 0
-    //atLineIndex = atLineIndex - ((_StrandsPerLine - 1) / 2.0f); //I don't understand this part tbh
-    
-    //float xPos = ((lineIndex - ((_Lines - 1) / 2.0f)) * (2 * _CapRadius / (_Lines))) + RandFloat(strandIndex, 1, _XPosRand);
-    ////clamping xPos to be inside cap
-    //xPos = clamp(xPos, -_CapRadius + 0.0000001f, _CapRadius - 0.0000001f);
-    //float zChord = sqrt(-pow(xPos, 2.0) + pow(_CapRadius, 2.0f)); //in given xPosition
-    //float zPos = (2 * zChord * atLineIndex / _StrandsPerLine) + RandFloat(strandIndex, 1, _ZPosRand);
-    ////calmping zPos to be inside cap
-    //zPos = clamp(zPos, -_CapRadius + 0.0000001f, _CapRadius - 0.0000001f);
-    
-    ////calc yPos from x and z
-    //float yPos = sqrt(pow(_CapRadius, 2.0f) - pow(xPos, 2.0f) - pow(zPos, 2.0f)) * (_CapHeight / _CapRadius);
-    
     float3 startPos = CalcStartPosv2(strandIndex);
-    
     
     _PointsPositions[strandIndex] = startPos + _CapPosition;
     
@@ -163,7 +146,6 @@ void CalcStartPositionLines(uint strandIndex)
         
         float3 direction = RotateByQuaternion(float3(0, 1, 0), _SegmentsQuaternions[index - _Strands]);
         _PointsPositions[index] = _PointsPositions[(index - _Strands)] + direction * _SegmentLength;
-        _SegmentsQuaternions[index] = _SegmentsQuaternions[index - _Strands];
         _PointData[2*index+1] = float3(0, 0, 0);
         _InvertedMasses[index] = 1;
     }
@@ -173,6 +155,7 @@ void CalcStartPositionLines(uint strandIndex)
         uint index = strandIndex + _Strands * segment;
         _InvertedInterias[index] = 1;
         _AngularVelocities[index] = float3(0, 0, 0);
+        _SegmentsQuaternions[index] = _SegmentsQuaternions[index - _Strands];
     }
 }
 
@@ -289,7 +272,7 @@ void CalcStartPositionLines(uint3 id : SV_DispatchThreadID)
     }
 }
 
-[numthreads(32, 1, 1)]
+[numthreads(64, 1, 1)]
 void AddPoint(uint3 id : SV_DispatchThreadID)
 {
     if (id.x < (uint) _Strands)
@@ -300,8 +283,9 @@ void AddPoint(uint3 id : SV_DispatchThreadID)
         _PointData[2*index + 1] = _PointData[2*(index - _Strands) + 1];
         _InvertedMasses[index] = 1;
         
-        _InvertedInterias[index] = 1;
-        _AngularVelocities[index] = _AngularVelocities[index - _Strands];
-        _SegmentsQuaternions[index] = _SegmentsQuaternions[index - _Strands];
+        _InvertedInterias[index - _Strands] = 1;
+        _AngularVelocities[index - _Strands] = _AngularVelocities[index - _Strands - _Strands];
+        _SegmentsQuaternions[index - _Strands] = _SegmentsQuaternions[index - _Strands - _Strands];
+        //_SegmentsQuaternions[index] = _SegmentsQuaternions[index - _Strands];
     }
 }

@@ -34,7 +34,7 @@ public class CollisionController : MonoBehaviour
 
     float[] capSize = { 2, 2, 2 };
 
-    public void PrepareCollision(int maxSegments, float segmentLength, float[] capSizes, Transform hairObject, SkinnedMeshRenderer skinnedMesh, ComputeShader collisionShader, bool debugMode, float minSphereSize)
+    public void PrepareCollision(float[] capSizes, Transform hairObject, SkinnedMeshRenderer skinnedMesh, ComputeShader collisionShader, bool debugMode, float minSphereSize)
     {
         this.collisionsShader = collisionShader;
         this.skinnedMeshRenderer =skinnedMesh;
@@ -49,7 +49,8 @@ public class CollisionController : MonoBehaviour
         sdfData = new CharacterSDF(boneCount, skinnedMeshRenderer, minSphereSize, debugMode);
         boneCount = sdfData.SDFOffset.Count;
         SetBuffers(sdfData);
-        grid = new CollisionGrid(prepareCollisionDataKernel, sdfData.LargestRadius*2, maxSegments, segmentLength,capSize, collisionsShader, hairObject);
+
+        grid = new CollisionGrid(prepareCollisionDataKernel, sdfData.LargestRadius*2,capSize, collisionsShader, hairObject, skinnedMesh);
     }
 
     private void SetBuffers(CharacterSDF sdfData)
@@ -162,7 +163,7 @@ public class CollisionController : MonoBehaviour
             int x = index % grid.Size;
             int y = ((index-x)/grid.Size)%grid.Size;
             int z = ((index-x - (y*grid.Size))/(grid.Size*grid.Size));
-            Vector3 translation = new Vector3(x*grid.CellSize, y*grid.CellSize, z*grid.CellSize);
+            Vector3 translation = new(x*grid.CellSize, y*grid.CellSize, z*grid.CellSize);
             if(haveOne)
             {
                 //Debug.Log(logString);

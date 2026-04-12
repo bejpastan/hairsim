@@ -14,7 +14,7 @@ Shader "Custom/HairShader"
             Tags { "LightMode" = "UniversalForward" }
 
             HLSLPROGRAM
-            #pragma target 4.5 //for AMD GPU support
+            #pragma target 4.5
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -25,7 +25,6 @@ Shader "Custom/HairShader"
             StructuredBuffer<float3> _PointsPositions;
             StructuredBuffer<float4> _SegmentsQuaternions;
             int _Strands;
-            int _Segments;
 
             float4 IDENTITY = float4(0,0,0,1);
 

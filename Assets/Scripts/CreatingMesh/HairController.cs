@@ -1,27 +1,26 @@
-using UnityEngine;
+using System;
 using Unity.Mathematics;
+using UnityEngine;
 
 public class HairController : MonoBehaviour
 {
-    public int ITERATION_COUNT = 10;
-    [Range(0,1)]
+    const int ITERATION_COUNT = 15;
+    [Range(0, 1)]
     public float collisionStiffnes;
 
     //TO DO get this automatically
-    [SerializeField]
     ComputeShader strandMeshBuilder;
-    [SerializeField]
     ComputeShader strandPositionShader;
-    [SerializeField]
     ComputeShader collisionShader;
+    ComputeShader resizing;
     [SerializeField]
     SkinnedMeshRenderer meshRenderer;
 
 
     [SerializeField]
     int segments;
-    [SerializeField]
-    int maxSegments = 100;
+    //[SerializeField]
+    //int maxSegments = 100;
     int previousSegments = 0;
     [SerializeField]
     float strandRadius = 0.1f;
@@ -33,7 +32,7 @@ public class HairController : MonoBehaviour
     const float VELOCITY_DUMPING = 0.98f;
     [Header("Distance Constraints")]
     [SerializeField]
-    [Range(0,1)]
+    [Range(0, 1)]
     float stiffness = 0.9f;
     [SerializeField]
     float strandLength = 1.0f;
@@ -85,20 +84,28 @@ public class HairController : MonoBehaviour
     MaterialPropertyBlock matProps;
 
     #region Points buffers
-    GraphicsBuffer pointsPositionData;
-    GraphicsBuffer positions;
-    GraphicsBuffer segmentsQuaternions;
-    GraphicsBuffer angularV;
-    GraphicsBuffer invertedMasses;
-    GraphicsBuffer invertedIntertias;
-    GraphicsBuffer predictedQuaternions;
-    GraphicsBuffer collisionConstraints;
+    GraphicsBuffer pointsPositionData;//1
+    GraphicsBuffer positions;//2
+    GraphicsBuffer segmentsQuaternions;//3
+    GraphicsBuffer angularV;//4
+    GraphicsBuffer invertedMasses;//5
+    GraphicsBuffer invertedIntertias;//6
+    GraphicsBuffer predictedQuaternions;//7
+    GraphicsBuffer collisionConstraints;//8
+    #endregion
+
+    #region changeLength
+    int lastChangeLength = 7;//range 0-7
+
+    int resizeKernelId;
     #endregion
 
     int startPositionKernelLinesId;
 
     int[] pbdKernels = new int[3];//0-prediction, 1-constraints, 2-post constraints
     int addPointKernelId;
+
+    bool rebuildingMesh = false;
 
     #region position calculation
     Vector3 lastPosition = new(0, 0, 0);
@@ -111,20 +118,20 @@ public class HairController : MonoBehaviour
     #region Collision calculations
     [SerializeField]//only for debugging
     CollisionController collisionController;
-    
+
     #endregion
 
     private void ValidateVars()
     {
-        if(leftCut + rightCut >= capRadius*2)
+        if (leftCut + rightCut >= capRadius * 2)
         {
             Debug.LogError("sum of left and right cut must be smaller then diameter of cap");
         }
-        if(backCut + frontCut >= capRadius*2)
+        if (backCut + frontCut >= capRadius * 2)
         {
             Debug.LogError("sum of back and front cut must be smaller then diameter of cap");
         }
-        if(strandCount % lines != 0)
+        if (strandCount % lines != 0)
         {
             Debug.LogError("Strand count must be a multiple of lines");
         }
@@ -132,9 +139,10 @@ public class HairController : MonoBehaviour
 
     private void Start()
     {
+        LoadShaders();
         ValidateVars();
         PrepareStructures();
-        collisionController.PrepareCollision(maxSegments, strandLength, new float[] {capRadius, capHeight, capRadius}, this.transform, meshRenderer, collisionShader, false, minSphereSize);
+        collisionController.PrepareCollision(new float[] { capRadius, capHeight, capRadius }, this.transform, meshRenderer, collisionShader, false, minSphereSize);
     }
 
     private void Update()
@@ -147,15 +155,12 @@ public class HairController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.DownArrow))//this is my external logic, ignore this if
         {
             segments = Mathf.Max(0, segments - 1);
-            if(segments != 0)
-            {
-                RebuildMesh();
-            }
         }
-        if(Input.GetKeyDown(KeyCode.UpArrow))
+        if (Input.GetKeyDown(KeyCode.UpArrow))
         {
-            segments = Mathf.Min(maxSegments, segments + 1);
-            RebuildMesh();
+            segments++;
+            
+            rebuildingMesh = true;
         }
     }
 
@@ -166,11 +171,57 @@ public class HairController : MonoBehaviour
 
     void FixedUpdate()
     {
+        if(segments != previousSegments)
+        {
+            RebuildMesh();
+        }
+
         CalcPositions();
+        if(rebuildingMesh)
+        {
+            Debug.Log(segments);
+            Debug.LogWarning("pointsPositionData");
+            ShowResults<float3>(pointsPositionData);
+            Debug.LogWarning("positions");
+            ShowResults<float3>(positions);
+            Debug.LogWarning("segmentsQuaternions");
+            ShowResults<float4>(segmentsQuaternions);
+            Debug.LogWarning("angularV");
+            ShowResults<float3>(angularV);
+            Debug.LogWarning("invertedMasses");
+            ShowResults<float>(invertedMasses);
+            Debug.LogWarning("invertedIntertias");
+            ShowResults<float>(invertedIntertias);
+            Debug.LogWarning("predictedQuaternions");
+            ShowResults<float4>(predictedQuaternions);
+            Debug.LogWarning("collisionConstraints");
+            ShowResults<float4>(collisionConstraints);
+            rebuildingMesh = false;
+        }
         matProps.SetBuffer("_PointsPositions", positions);
         matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
     }
 
+
+    private void LoadShaders()
+    {
+        strandMeshBuilder = Resources.Load<ComputeShader>("ComputeShaders/RebuildMeshShader");
+        strandPositionShader = Resources.Load<ComputeShader>("ComputeShaders/StrandsPositions");
+        collisionShader = Resources.Load<ComputeShader>("ComputeShaders/SDFCollisions");
+        resizing = Resources.Load<ComputeShader>("ComputeShaders/ResizingBuffer");
+
+        verticesKernelId = strandMeshBuilder.FindKernel("BuildVertices");
+        indicesKernelId = strandMeshBuilder.FindKernel("BuildIndices");
+        closingIndicesKernelId = strandMeshBuilder.FindKernel("SetClosingIndices");
+
+        pbdKernels[0] = strandPositionShader.FindKernel("Predictions");
+        pbdKernels[1] = strandPositionShader.FindKernel("CalcConstraints");
+        pbdKernels[2] = strandPositionShader.FindKernel("PostConstraints");
+        startPositionKernelLinesId = strandPositionShader.FindKernel("CalcStartPositionLines");
+        addPointKernelId = strandPositionShader.FindKernel("AddPoint");
+
+        resizeKernelId = resizing.FindKernel("ResizeBuffer");
+    }
     private void ClearBuffers()
     {
         collisionController.ClearBuffers();
@@ -196,28 +247,33 @@ public class HairController : MonoBehaviour
         MeshShaderSetup();
         HairShaderSetup();
         strandPositionShader.Dispatch(startPositionKernelLinesId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+        previousSegments = segments;
         RebuildMesh();
     }
 
     private void PositionShaderSetup()
     {
         #region positions shader setup
-        pbdKernels[0] = strandPositionShader.FindKernel("Predictions");
-        pbdKernels[1] = strandPositionShader.FindKernel("CalcConstraints");
-        pbdKernels[2] = strandPositionShader.FindKernel("PostConstraints");
-        startPositionKernelLinesId = strandPositionShader.FindKernel("CalcStartPositionLines");
-        addPointKernelId = strandPositionShader.FindKernel("AddPoint");
+        //I need to change this
+        //positions =             new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1), sizeof(float) * 3);
+        //pointsPositionData =    new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1)*2, sizeof(float) * 3);
+        //invertedMasses =        new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1), sizeof(float));
+        //segmentsQuaternions =   new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float)*4);
+        //angularV =              new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float)*3);
+        //invertedIntertias =     new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float));
+        //predictedQuaternions =  new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float) * 4);
+        //collisionConstraints =  new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1)*2, sizeof(float) * 4);
 
-        float4[] zeroArray = new float4[strandCount * (maxSegments+1)*2];
+        pointsPositionData =    new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (segments + 1) * 2, sizeof(float) * 3);//this have original size, because is resized when rebuilding mesh
+        positions =             new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (segments + 2), sizeof(float) * 3);
+        segmentsQuaternions =   new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (segments +2), sizeof(float) * 4);
+        angularV =              new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (segments+3), sizeof(float) * 3);
+        invertedMasses =        new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * ((segments+4) + 1), sizeof(float));
+        invertedIntertias =     new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (segments+5), sizeof(float));
+        predictedQuaternions =  new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (segments+6), sizeof(float) * 4);
+        collisionConstraints =  new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * ((segments+7) + 1) * 2, sizeof(float) * 4);
 
-        positions =             new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1), sizeof(float) * 3);
-        pointsPositionData =    new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1)*2, sizeof(float) * 3);
-        invertedMasses =        new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1), sizeof(float));
-        segmentsQuaternions =   new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float)*4);
-        angularV =              new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float)*3);
-        invertedIntertias =     new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float));
-        predictedQuaternions =  new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * maxSegments, sizeof(float) * 4);
-        collisionConstraints =  new GraphicsBuffer(GraphicsBuffer.Target.Structured, strandCount * (maxSegments + 1)*2, sizeof(float) * 4);
+        float4[] zeroArray = new float4[strandCount * (segments + 1) * 2];
         collisionConstraints.SetData(zeroArray);
 
         strandPositionShader.SetFloat("_TimeStep", Time.fixedDeltaTime);
@@ -243,12 +299,13 @@ public class HairController : MonoBehaviour
         strandPositionShader.SetFloat("_LeftCut", leftCut);
         strandPositionShader.SetFloat("_RightCut", rightCut);
         strandPositionShader.SetFloat("_BackCut", backCut);
-        strandPositionShader.SetFloat("_FrontCut", frontCut);   
+        strandPositionShader.SetFloat("_FrontCut", frontCut);
         SetVariables();
     }
+
     private void SetSimulationsBuffer()
     {
-        foreach(int kernel in pbdKernels)
+        foreach (int kernel in pbdKernels)
         {
             strandPositionShader.SetBuffer(kernel, "_PointData", pointsPositionData);
             strandPositionShader.SetBuffer(kernel, "_PointsPositions", positions);
@@ -287,10 +344,6 @@ public class HairController : MonoBehaviour
     private void MeshShaderSetup()
     {
         #region mesh shader setup
-        verticesKernelId = strandMeshBuilder.FindKernel("BuildVertices");
-        indicesKernelId = strandMeshBuilder.FindKernel("BuildIndices");
-        closingIndicesKernelId = strandMeshBuilder.FindKernel("SetClosingIndices");
-
         cmdBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, COMMAND_COUNT, GraphicsBuffer.IndirectDrawArgs.size);
         cmdArgsBuffer = new GraphicsBuffer.IndirectDrawArgs[COMMAND_COUNT];
 
@@ -313,8 +366,102 @@ public class HairController : MonoBehaviour
         #endregion
     }
 
+
+    /// <summary>
+    /// for resizing existing gruphics buffers
+    /// </summary>
+    /// <param name="old"></param>
+    /// <param name="newSize"></param>
+    private GraphicsBuffer ResizeBuffer(GraphicsBuffer old, int newSize)
+    {
+        GraphicsBuffer resized = new GraphicsBuffer(old.target, newSize, old.stride);
+        int oldBytes = old.count * old.stride;
+        int newBytes = resized.count * resized.stride;
+        resizing.SetBuffer(resizeKernelId, "_OldBuffer", old);
+        resizing.SetBuffer(resizeKernelId, "_NewBuffer", resized);
+        resizing.SetInt("_OldBytes", oldBytes);
+        resizing.SetInt("_NewBytes", newBytes);
+        int xGroup = Mathf.CeilToInt((float)oldBytes / 64);
+        resizing.Dispatch(resizeKernelId, xGroup, 1, 1);
+        old.Dispose();
+        return resized;
+    }
+
+
+
     private void RebuildMesh()
     {
+
+        #region add simulation points
+        if (previousSegments < segments)
+        {
+            //lenghtening
+            lastChangeLength++;
+            lastChangeLength = lastChangeLength % 8;//when I get 8, it return to 0
+            int newSegmentSize = segments + 7;
+            switch (lastChangeLength)
+            {
+                case 0:
+                    pointsPositionData = ResizeBuffer(pointsPositionData, strandCount * (newSegmentSize + 1) * 2);
+                    break;
+                case 1:
+                    positions = ResizeBuffer(positions, strandCount * (newSegmentSize + 1));
+                    break;
+                case 2:
+                    segmentsQuaternions = ResizeBuffer(segmentsQuaternions, strandCount * (newSegmentSize));
+                    break;
+                case 3:
+                    angularV = ResizeBuffer(angularV, strandCount * newSegmentSize);
+                    break;
+                case 4:
+                    invertedMasses = ResizeBuffer(invertedMasses, strandCount * (newSegmentSize + 1));
+                    break;
+                case 5:
+                    invertedIntertias = ResizeBuffer(invertedIntertias, strandCount * newSegmentSize);
+                    break;
+                case 6:
+                    predictedQuaternions = ResizeBuffer(predictedQuaternions, strandCount * newSegmentSize);
+                    break;
+                case 7:
+                    collisionConstraints = ResizeBuffer(collisionConstraints, strandCount * (newSegmentSize + 1) * 2);
+                    break;
+            }
+        }
+        else
+        {
+            //shortening
+
+        }
+
+        strandPositionShader.SetInt("_Strands", strandCount);
+        strandPositionShader.SetInt("_Segments", segments);
+
+        if (previousSegments < segments)//skip this when segmenst are less-equal then previous
+        {
+            SetAddPointBuffer();
+            strandPositionShader.Dispatch(addPointKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
+        }
+        Debug.Log(segments);
+        Debug.LogWarning("pointsPositionData");
+        ShowResults<float3>(pointsPositionData);
+        Debug.LogWarning("positions");
+        ShowResults<float3>(positions);
+        Debug.LogWarning("segmentsQuaternions");
+        ShowResults<float4>(segmentsQuaternions);
+        Debug.LogWarning("angularV");
+        ShowResults<float3>(angularV);
+        Debug.LogWarning("invertedMasses");
+        ShowResults<float>(invertedMasses);
+        Debug.LogWarning("invertedIntertias");
+        ShowResults<float>(invertedIntertias);
+        Debug.LogWarning("predictedQuaternions");
+        ShowResults<float4>(predictedQuaternions);
+        Debug.LogWarning("collisionConstraints");
+        ShowResults<float4>(collisionConstraints);
+        #endregion
+
+
+        #region rebuild mesh
         int vertexCount = (segments + 1) * 4;
         int indexCount = (segments * 6 * 4) + 6;
         vertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, vertexCount, sizeof(float) * 3);
@@ -322,10 +469,7 @@ public class HairController : MonoBehaviour
         matProps.SetBuffer("_Vertices", vertexBuffer);
         matProps.SetBuffer("_Indices", indexBuffer);
 
-        //positions shader setup
-        strandPositionShader.SetInt("_Segments", segments);
-        strandPositionShader.SetInt("_Strands", strandCount);
-        
+        //positions shader setup        
         strandMeshBuilder.SetInt("_Segments", segments);
         strandMeshBuilder.SetFloat("_BaseSize", strandRadius);
         strandMeshBuilder.SetInt("_verticesCount", vertexCount);
@@ -335,8 +479,8 @@ public class HairController : MonoBehaviour
         strandMeshBuilder.SetBuffer(indicesKernelId, "_Indices", indexBuffer);
         strandMeshBuilder.SetBuffer(closingIndicesKernelId, "_Indices", indexBuffer);
 
-        float vertGroup = ((segments + 1)*4)/64.0f;
-        float indGroup = ((segments+1)*4)/64.0f;
+        float vertGroup = ((segments + 1) * 4) / 64.0f;
+        float indGroup = ((segments + 1) * 4) / 64.0f;
 
         strandMeshBuilder.Dispatch(verticesKernelId, (int)Mathf.Ceil(vertGroup), 1, 1);
         strandMeshBuilder.Dispatch(indicesKernelId, (int)Mathf.Ceil(indGroup), 1, 1);
@@ -344,14 +488,7 @@ public class HairController : MonoBehaviour
 
         cmdArgsBuffer[0].vertexCountPerInstance = (uint)segments * 6 * 4 + 6;//well, in reality this is index count
         cmdArgsBuffer[0].instanceCount = (uint)strandCount;
-
-        strandPositionShader.SetInt("_Segments", segments);
-
-        if(previousSegments < segments)//skip this when segmenst are less-equal then previous
-        {
-            SetAddPointBuffer();
-            strandPositionShader.Dispatch(addPointKernelId, (int)Mathf.Ceil(strandCount / 32.0f), 1, 1);
-        }
+        #endregion
 
         cmdBuffer.SetData(cmdArgsBuffer);
         previousSegments = segments;
@@ -374,7 +511,7 @@ public class HairController : MonoBehaviour
     {
         Vector4[] data = new Vector4[buffer.count];
         buffer.GetData(data);
-        for(int i = 0; i < data.Length; ++i)
+        for (int i = 0; i < data.Length; ++i)
         {
             if (data[i].magnitude != 0)
             {

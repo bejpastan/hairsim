@@ -4,7 +4,7 @@
 #pragma kernel CalcCollisions
 #pragma kernel ClearCollisions
 
-#include "../Math/Math.compute"
+#include "Math.compute"
 
 
 // Create a RenderTexture with enableRandomWrite flag and set it
@@ -442,6 +442,10 @@ void CalcCollisions(uint3 id : SV_DispatchThreadID)
             {
                 int pointId = id.x + segment * _strands;
                 int cellId = ToCell(_PointData[pointId * 2]);
+                if(cellId<0)
+                {
+                    continue;
+                }
                 uint mask = _MaskGrid[cellId].x;
                 int sdfId = firstbithigh(mask);
                 while (sdfId >= 0)
