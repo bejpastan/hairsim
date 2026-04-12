@@ -3,7 +3,7 @@ using Unity.Mathematics;
 
 public class HairController : MonoBehaviour
 {
-    const int ITERATION_COUNT = 10;//public for testing only
+    public int ITERATION_COUNT = 10;
     [Range(0,1)]
     public float collisionStiffnes;
 
@@ -133,7 +133,6 @@ public class HairController : MonoBehaviour
     private void Start()
     {
         ValidateVars();
-        //previousSegments = segments;
         PrepareStructures();
         collisionController.PrepareCollision(maxSegments, strandLength, new float[] {capRadius, capHeight, capRadius}, this.transform, meshRenderer, collisionShader, false, minSphereSize);
     }
@@ -145,7 +144,7 @@ public class HairController : MonoBehaviour
         {
             Graphics.RenderPrimitivesIndirect(renderParams, MeshTopology.Triangles, cmdBuffer);
         }
-        if (Input.GetKeyDown(KeyCode.DownArrow))//this is my external logic, ignore this if
+        if (Input.GetKeyDown(KeyCode.DownArrow))
         {
             segments = Mathf.Max(0, segments - 1);
             if(segments != 0)
@@ -318,14 +317,14 @@ public class HairController : MonoBehaviour
     {
         int vertexCount = (segments + 1) * 4;
         int indexCount = (segments * 6 * 4) + 6;
-        vertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, vertexCount, sizeof(float) * 3);
-        indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, indexCount, sizeof(int));
+        vertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, vertexCount, sizeof(float) * 3);
+        indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, indexCount, sizeof(int));
         matProps.SetBuffer("_Vertices", vertexBuffer);
         matProps.SetBuffer("_Indices", indexBuffer);
 
         //positions shader setup
-        strandPositionShader.SetInts("_Segments", segments);
-        strandPositionShader.SetInts("_Strands", strandCount);
+        strandPositionShader.SetInt("_Segments", segments);
+        strandPositionShader.SetInt("_Strands", strandCount);
         
         strandMeshBuilder.SetInt("_Segments", segments);
         strandMeshBuilder.SetFloat("_BaseSize", strandRadius);
@@ -369,20 +368,6 @@ public class HairController : MonoBehaviour
         {
             Debug.Log($"Point {i}: {data[i]}");
         }
-
-        //Debug.Log("all showed");
-    }
-
-    private void ReadGraphicBuffer<T>(GraphicsBuffer buffer)
-    {
-        T[] data = new T[buffer.count];
-        buffer.GetData(data);
-        Debug.Log(data.Length);
-        for (int i = 0; i < data.Length; i++)
-        {
-            Debug.Log($"Point {i}: {data[i]}");
-        }
-        Debug.Log("all showed");
     }
 
     private void DrawBuffer(GraphicsBuffer buffer)
