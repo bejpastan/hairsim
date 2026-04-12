@@ -2,6 +2,7 @@
 #pragma kernel BuildVertices
 #pragma kernel BuildIndices
 #pragma kernel SetClosingIndices
+#pragma target 5.0
 
 
 RWStructuredBuffer<float3> _Vertices;
@@ -17,16 +18,16 @@ uint _indicesCount;
 
 void GetIndice(uint index)//index is the quad index
 {
-    uint segment = index / 4;
-    uint vStart = index; //this is first vertix of the quad
-    uint vNext = (vStart + 1)%4 + segment * 4; //this neighbor vertix in the quad
+    int segment = ((int) index) / 4;
+    int vStart = index; //this is first vertex of the quad
+    int vNext = (vStart + 1)%4 + segment * 4; //this neighbor vertix in the quad
 
-    uint v0 = vStart;
-    uint v1 = vNext;
-    uint v2 = vStart + 4;
-    uint v3 = vNext + 4;
+    int v0 = vStart;
+    int v1 = vNext;
+    int v2 = vStart + 4;
+    int v3 = vNext + 4;
     
-    uint offset = index * 6;
+    int offset = index * 6;
     _Indices[offset] = v1;
     _Indices[offset + 1] = v2;
     _Indices[offset + 2] = v0;
@@ -37,11 +38,11 @@ void GetIndice(uint index)//index is the quad index
 
 void GetPosition(uint index)
 {
-    float i = index % 4;
+    float i = (float)(index % 4);
     float a = i % 2;
 
     float y = 0;
-    uint offset = index * 12;
+    float offset = index * 12;
 
     _Vertices[index] = float3(((i - a) - 1) * a * _BaseSize, y, ((i - a) - 1) * ((1 + i) % 2) * _BaseSize);
 }
