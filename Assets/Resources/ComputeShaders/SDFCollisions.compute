@@ -359,48 +359,6 @@ void ClearMask(uint3 id : SV_DispatchThreadID)
     }
 }
 
-
-//[numthreads(32, 1, 1)] //strand id's
-//void CalcCollisions(uint3 id : SV_DispatchThreadID)
-//{
-//    if(id.x < _strands)
-//    {
-//        for (int segment = 0; segment < _segmentsCount; segment++)
-//        {
-//            int pointId = (id.x + (segment * _strands));
-//            float3 pointPos = _PointData[pointId * 2];
-//            float3 pointDir = _PointData[(pointId + _strands) * 2] - pointPos;
-            
-//            int cellId = ToCell(pointPos);
-//            float3 requiredChange = SummarizeChangesInPoint(pointPos, _MaskGrid[cellId]);//I calculate this for this, and next point, so I will move only next point, to 1. skip point attached to head, 2. make easier calculations
-            
-//            //_collisionConstraints[pointId * 2] += float4(requiredChange, 0);
-//            //_collisionConstraints[pointId * 2+1] += float4(pointPos, 0);
-//            //continue;
-            
-//            //float weight = exp(length(requiredChange));
-//            float divider = length(requiredChange);
-//            //divider += weight;
-//            //_collisionConstraints[pointId*2] += float4(requiredChange, 0) * clamp(segment, 0, 1);
-            
-//            if (divider == 0)
-//            {
-//                divider = 1;
-//                _collisionConstraints[(pointId * 2) + 1] = float4(0, 0, 0, divider);
-//            }
-//            else
-//            {
-//                _collisionConstraints[(pointId * 2) + 1] = float4(normalize(requiredChange), 0);
-//            }
-//            //_collisionConstraints[pointId*2] /= divider;
-            
-//            _collisionConstraints[pointId * 2] = float4(_PointData[pointId * 2] + requiredChange, 0);
-//            //_collisionConstraints[pointId * 2 + 1] = float4(requiredChange);
-//            //_collisionConstraints[pointId + _strands] = float4(requiredChange * _collisionStiffness, 0);
-//        }
-//    }
-//}
-
 //calc required change in one point for one collider
 float3 RequiredChange(int sdfId, float3 pointPosition, float3 pointDir)
 {

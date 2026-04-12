@@ -50,7 +50,7 @@ public class CollisionController : MonoBehaviour
         boneCount = sdfData.SDFOffset.Count;
         SetBuffers(sdfData);
 
-        grid = new CollisionGrid(prepareCollisionDataKernel, sdfData.LargestRadius*2,capSize, collisionsShader, hairObject, skinnedMesh);
+        grid = new CollisionGrid(prepareCollisionDataKernel, sdfData.LargestRadius*2,capSize, collisionsShader, transform, skinnedMesh);
     }
 
     private void SetBuffers(CharacterSDF sdfData)
@@ -77,7 +77,7 @@ public class CollisionController : MonoBehaviour
         bonePositionBuffer = sdfData.BonePositionsBuffer;
     }
 
-    public void CalculateCollisions(GraphicsBuffer pointsData, GraphicsBuffer collisionConstraints, int pointsCount, float strandRadius, int strandCount, float collisionStiffnes)
+    public void CalculateCollisions(GraphicsBuffer pointsData, GraphicsBuffer collisionConstraints, int pointsCount, float strandRadius, int strandCount)
     {
         sdfData.UpdateSDFPositions();
         grid.SetDataToShader();
@@ -86,7 +86,6 @@ public class CollisionController : MonoBehaviour
         collisionsShader.SetInt("_strands", strandCount);
         collisionsShader.SetInt("_segmentsCount", pointsCount / strandCount);
         collisionsShader.SetFloat("_strandRadius", strandRadius);
-        collisionsShader.SetFloat("_collisionStiffness", collisionStiffnes);
 
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_sdfData", sdfDataBuffer);
         collisionsShader.SetBuffer(prepareCollisionDataKernel, "_originalBonesRotation", originalBonesRotation);

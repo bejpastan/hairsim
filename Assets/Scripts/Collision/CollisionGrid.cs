@@ -11,7 +11,7 @@ public class CollisionGrid
     GraphicsBuffer gridBuffer;
     public GraphicsBuffer GridBuffer => gridBuffer;
     int size;
-    Transform hairObject;
+    Transform character;
     float cellSize;
     int kernelId;
     Vector3 origin;
@@ -20,7 +20,7 @@ public class CollisionGrid
     public Vector3 GridSize => size * cellSize * Vector3.one;
     public int Size => size;
 
-    public CollisionGrid(int kernelId, float cellSize, float[] capSizes, ComputeShader shader, Transform hairObject, SkinnedMeshRenderer skinnedMesh)
+    public CollisionGrid(int kernelId, float cellSize, float[] capSizes, ComputeShader shader, Transform character, SkinnedMeshRenderer skinnedMesh)
     {
         this.kernelId = kernelId;
         this.cellSize = cellSize;
@@ -31,8 +31,14 @@ public class CollisionGrid
         this.cellSize = ((Mathf.Max(capSizes) + (skinnedMeshSize)) / size);
         gridBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, size * size * size, 8);//support max 64 SDFs
         gridBuffer.SetData(new uint2[size*size*size]);
-        this.hairObject = hairObject;
+        this.character = character;
         sdfCollisionShader = shader;
+
+        float shift = (size) * cellSize;
+        shift /= 2;
+        origin = character.position - (Vector3.one * shift);
+        origin.y = character.position.y;
+        Drawing.DrawGrid(Vector3.one * cellSize, GridSize, origin, Color.green, 10f);
     }
 
     /// <summary>
@@ -42,9 +48,10 @@ public class CollisionGrid
     {
         sdfCollisionShader.SetBuffer(kernelId, "_MaskGrid", gridBuffer);
         sdfCollisionShader.SetVector("_gridSizes", new Vector4(size, size, size, 0));
-        float shift = (size-1) * cellSize;
+        float shift = (size) * cellSize;
         shift /= 2;
-        origin = hairObject.position - (Vector3.one * shift);
+        origin = character.position - (Vector3.one * shift);
+        origin.y = character.position.y;
         sdfCollisionShader.SetVector("_gridOrigin", new Vector4(origin.x, origin.y, origin.z , 0));
         sdfCollisionShader.SetFloat("_cellSize", cellSize);
     }

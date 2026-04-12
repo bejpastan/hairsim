@@ -105,8 +105,6 @@ public class HairController : MonoBehaviour
     int[] pbdKernels = new int[3];//0-prediction, 1-constraints, 2-post constraints
     int addPointKernelId;
 
-    bool rebuildingMesh = false;
-
     #region position calculation
     Vector3 lastPosition = new(0, 0, 0);
     #endregion
@@ -159,8 +157,6 @@ public class HairController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.UpArrow))
         {
             segments++;
-            
-            rebuildingMesh = true;
         }
     }
 
@@ -177,27 +173,6 @@ public class HairController : MonoBehaviour
         }
 
         CalcPositions();
-        if(rebuildingMesh)
-        {
-            Debug.Log(segments);
-            Debug.LogWarning("pointsPositionData");
-            ShowResults<float3>(pointsPositionData);
-            Debug.LogWarning("positions");
-            ShowResults<float3>(positions);
-            Debug.LogWarning("segmentsQuaternions");
-            ShowResults<float4>(segmentsQuaternions);
-            Debug.LogWarning("angularV");
-            ShowResults<float3>(angularV);
-            Debug.LogWarning("invertedMasses");
-            ShowResults<float>(invertedMasses);
-            Debug.LogWarning("invertedIntertias");
-            ShowResults<float>(invertedIntertias);
-            Debug.LogWarning("predictedQuaternions");
-            ShowResults<float4>(predictedQuaternions);
-            Debug.LogWarning("collisionConstraints");
-            ShowResults<float4>(collisionConstraints);
-            rebuildingMesh = false;
-        }
         matProps.SetBuffer("_PointsPositions", positions);
         matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
     }
@@ -441,25 +416,7 @@ public class HairController : MonoBehaviour
             SetAddPointBuffer();
             strandPositionShader.Dispatch(addPointKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
         }
-        Debug.Log(segments);
-        Debug.LogWarning("pointsPositionData");
-        ShowResults<float3>(pointsPositionData);
-        Debug.LogWarning("positions");
-        ShowResults<float3>(positions);
-        Debug.LogWarning("segmentsQuaternions");
-        ShowResults<float4>(segmentsQuaternions);
-        Debug.LogWarning("angularV");
-        ShowResults<float3>(angularV);
-        Debug.LogWarning("invertedMasses");
-        ShowResults<float>(invertedMasses);
-        Debug.LogWarning("invertedIntertias");
-        ShowResults<float>(invertedIntertias);
-        Debug.LogWarning("predictedQuaternions");
-        ShowResults<float4>(predictedQuaternions);
-        Debug.LogWarning("collisionConstraints");
-        ShowResults<float4>(collisionConstraints);
         #endregion
-
 
         #region rebuild mesh
         int vertexCount = (segments + 1) * 4;
@@ -536,7 +493,7 @@ public class HairController : MonoBehaviour
         for (int i = 1; i < ITERATION_COUNT; i++)
         {
             strandPositionShader.Dispatch(pbdKernels[1], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
-            collisionController.CalculateCollisions(pointsPositionData, collisionConstraints, pointsPositionData.count / 2, strandRadius, strandCount, collisionStiffnes);
+            collisionController.CalculateCollisions(pointsPositionData, collisionConstraints, pointsPositionData.count / 2, strandRadius, strandCount);
         }
         strandPositionShader.Dispatch(pbdKernels[2], (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
 
