@@ -169,9 +169,9 @@ public class HairController : MonoBehaviour
     {
         if(segments != previousSegments)
         {
+            ResizeHair();
             RebuildMesh();
         }
-
         CalcPositions();
         matProps.SetBuffer("_PointsPositions", positions);
         matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
@@ -363,10 +363,8 @@ public class HairController : MonoBehaviour
     }
 
 
-
-    private void RebuildMesh()
+    private void ResizeHair()
     {
-
         #region add simulation points
         if (previousSegments < segments)
         {
@@ -405,7 +403,36 @@ public class HairController : MonoBehaviour
         else
         {
             //shortening
-
+            int newSegmentSize = segments;
+            switch (lastChangeLength)
+            {
+                case 0:
+                    pointsPositionData = ResizeBuffer(pointsPositionData, strandCount * (newSegmentSize + 1) * 2);
+                    break;
+                case 1:
+                    positions = ResizeBuffer(positions, strandCount * (newSegmentSize + 1));
+                    break;
+                case 2:
+                    segmentsQuaternions = ResizeBuffer(segmentsQuaternions, strandCount * (newSegmentSize));
+                    break;
+                case 3:
+                    angularV = ResizeBuffer(angularV, strandCount * newSegmentSize);
+                    break;
+                case 4:
+                    invertedMasses = ResizeBuffer(invertedMasses, strandCount * (newSegmentSize + 1));
+                    break;
+                case 5:
+                    invertedIntertias = ResizeBuffer(invertedIntertias, strandCount * newSegmentSize);
+                    break;
+                case 6:
+                    predictedQuaternions = ResizeBuffer(predictedQuaternions, strandCount * newSegmentSize);
+                    break;
+                case 7:
+                    collisionConstraints = ResizeBuffer(collisionConstraints, strandCount * (newSegmentSize + 1) * 2);
+                    break;
+            }
+            lastChangeLength += 7;//adding 7 to go around
+            lastChangeLength = lastChangeLength % 8;//when I get 8, it return to 0
         }
 
         strandPositionShader.SetInt("_Strands", strandCount);
@@ -416,8 +443,23 @@ public class HairController : MonoBehaviour
             SetAddPointBuffer();
             strandPositionShader.Dispatch(addPointKernelId, (int)Mathf.Ceil(strandCount / 64.0f), 1, 1);
         }
+
+        Debug.Log(lastChangeLength);
+        ShowResults<float3>(pointsPositionData);
+        ShowResults<float3>(positions);
+        ShowResults<float4>(segmentsQuaternions);
+        ShowResults<float3>(angularV);
+        ShowResults<float>(invertedMasses);
+        ShowResults<float>(invertedIntertias);
+        ShowResults<float4>(predictedQuaternions);
+        ShowResults<float4>(collisionConstraints);
         #endregion
 
+    }
+
+
+    private void RebuildMesh()
+    {
         #region rebuild mesh
         int vertexCount = (segments + 1) * 4;
         int indexCount = (segments * 6 * 4) + 6;

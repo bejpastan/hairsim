@@ -544,13 +544,13 @@ MonoBehaviour:
   meshRenderer: {fileID: 1356183232}
   segments: 1
   strandRadius: 0.05
-  strandCount: 4
+  strandCount: 40
   stiffness: 1
   strandLength: 0.05
-  bendStiffness: 1
-  lines: 2
+  bendStiffness: 0.12
+  lines: 8
   capHeight: 0.1
-  capRadius: 0.2
+  capRadius: 0.1
   zRandRange: 0
   xRandRange: 0
   leftCut: 0
