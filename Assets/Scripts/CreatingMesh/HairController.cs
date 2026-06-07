@@ -145,6 +145,16 @@ public class HairController : MonoBehaviour
 
     private void Update()
     {
+        if (segments != previousSegments)
+        {
+            ResizeHair();
+            RebuildMesh();
+        }
+        CalcPositions();
+        matProps.SetBuffer("_PointsPositions", positions);
+        matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
+        //TO TEST ONLY
+
         renderParams.matProps = matProps;
         if (segments != 0)
         {
@@ -167,14 +177,14 @@ public class HairController : MonoBehaviour
 
     void FixedUpdate()
     {
-        if(segments != previousSegments)
-        {
-            ResizeHair();
-            RebuildMesh();
-        }
-        CalcPositions();
-        matProps.SetBuffer("_PointsPositions", positions);
-        matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
+        //if(segments != previousSegments)
+        //{
+        //    ResizeHair();
+        //    RebuildMesh();
+        //}
+        //CalcPositions();
+        //matProps.SetBuffer("_PointsPositions", positions);
+        //matProps.SetBuffer("_SegmentsQuaternions", segmentsQuaternions);
     }
 
 
