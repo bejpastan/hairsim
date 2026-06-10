@@ -125,7 +125,6 @@ public class CharacterSDF
         }
         #endregion
 
-        //removing duplicates
         foreach (var key in boneVertices.Keys.ToList())
         {
             boneVertices[key] = boneVertices[key].Distinct().ToList();
@@ -145,13 +144,13 @@ public class CharacterSDF
             mean += worldVertex / vertices.Count;
         }
 
-        foreach (Vector3 vertex in vertices)
+        for(int i=0; i< vertices.Count; i++)
         {
-            Vector3 worldVertex = skinnedMeshRenderer.transform.TransformPoint(vertex);
+            Vector3 worldVertex = skinnedMeshRenderer.transform.TransformPoint(vertices[i]);
             Vector3 centered = worldVertex - mean;
-            A[Array.IndexOf(vertices.ToArray(), vertex), 0] = centered.x;
-            A[Array.IndexOf(vertices.ToArray(), vertex), 1] = centered.y;
-            A[Array.IndexOf(vertices.ToArray(), vertex), 2] = centered.z;
+            A[i, 0] = centered.x;
+            A[i, 1] = centered.y;
+            A[i, 2] = centered.z;
             if(debugMode)
             {
                 Debug.DrawLine(mean, worldVertex, Color.green, 3f);
